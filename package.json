@@ -1,29 +1,16 @@
 {
-  "name": "@opensesamemedia/syncstage-sdk-npm-package-test",
-  "version": "0.0.0-development",
+  "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
+  "version": "0.0.12-development",
   "description": "",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./lib/esm/types/index.d.ts",
-        "default": "./lib/esm/index.mjs"
-      },
-      "require": {
-        "types": "./lib/cjs/types/index.d.ts",
-        "default": "./lib/cjs/index.js"
-      }
-    }
-  },
-  "types": "./lib/cjs/types/index.d.ts",
-  "main": "./lib/cjs/index.js",
+  "types": "./lib/types/index.d.ts",
+  "main": "./lib/index.js",
   "files": [
     "lib/**/*"
   ],
+  "exports": "./lib",
   "scripts": {
     "clean": "rm -rf ./lib",
-    "build": "npm run clean && npm run build:esm && npm run build:cjs",
-    "build:esm": "tsc -p ./configs/tsconfig.esm.json && mv lib/esm/index.js lib/esm/index.mjs",
-    "build:cjs": "tsc -p ./configs/tsconfig.cjs.json",
+    "build": "npm run clean && tsc -p ./configs/tsconfig.json",
     "test": "mocha",
     "semantic-release": "semantic-release",
     "prepack": "npm run build"

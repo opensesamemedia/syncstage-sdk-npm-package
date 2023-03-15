@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "lib": ["ES6"],
+    "target": "ES6",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "../lib",
+    "declarationDir": "../lib/types",
+    "importHelpers": true,
+    "strict": true,
+    "esModuleInterop": true,
+    "declaration": true,
+    "declarationMap": true,
+  },
+  "include": [
+    "../src/**/*"
+  ],
+  "exclude": ["../node_modules", "../.vscode", "../**/*.spec.ts"],
+}

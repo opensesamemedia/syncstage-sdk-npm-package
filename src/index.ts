@@ -1,14 +1,11 @@
-export function helloWorld() {
-  const message = 'Hello World from my example modern npm package!';
-  return message;
+import SyncStageSDKErrorCode from "./SyncStageSDErrorCode";
+
+export default class SyncStage {
+
+  public init(applicationSecretId: String, applicationSecretKey: String): SyncStageSDKErrorCode{
+    console.log("init");
+    return SyncStageSDKErrorCode.OK;
+  } 
 }
 
-export function goodBye() {
-  const message = 'Goodbye from my example modern npm package!';
-  return message;
-}
-
-export default {
-  helloWorld,
-  goodBye,
-};
+export { SyncStageSDKErrorCode };
