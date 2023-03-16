@@ -1,0 +1,13 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "plugins": ["@typescript-eslint", "plugin:prettier/recommended"],
+    "parserOptions": {
+      "ecmaVersion": 2018,
+      "sourceType": "module"
+    },
+    "rules": {
+      "quotes": [2, "single"],
+      "@typescript-eslint/no-explicit-any": "off",
+      "prettier/prettier": ["error", { "endOfLine": "auto" }]
+    }
+  }
