@@ -1,7 +1,7 @@
 import 'mocha';
 import { assert } from 'chai';
 
-import SyncStage from '../src/index';
+import SyncStage from '../src/SyncStage';
 
 describe('SyncStage', () => {
   it('should have a init function', () => {

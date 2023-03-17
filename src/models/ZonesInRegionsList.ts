@@ -1,6 +1,6 @@
 import { IRegionZone, IRegion } from './IZonesIRegionsList';
 
-class RegionZone implements IRegionZone {
+export class RegionZone implements IRegionZone {
   zoneId: string;
   zoneName: string;
   providerType: string;

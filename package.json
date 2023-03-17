@@ -2,8 +2,8 @@
   "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
   "version": "0.0.12-development",
   "description": "",
-  "types": "./lib/types/index.d.ts",
-  "main": "./lib/index.js",
+  "types": "./lib/types/SyncStage.d.ts",
+  "main": "./lib/SyncStage.js",
   "files": [
     "lib/**/*"
   ],
