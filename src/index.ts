@@ -12,8 +12,8 @@ import {
   MOCK_SESSION,
 } from './MockData';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
-import ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDelegate';
-import ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
+import type ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDelegate';
+import type ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
@@ -114,4 +114,4 @@ export default class SyncStage implements ISyncStage {
   }
 }
 
-export { SyncStageSDKErrorCode };
+export { SyncStageSDKErrorCode, ISyncStageConnectivityDelegate, ISyncStageUserDelegate };
