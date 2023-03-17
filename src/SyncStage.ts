@@ -12,11 +12,24 @@ import {
   MOCK_SESSION,
 } from './MockData';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
+import ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDelegate';
+import ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
 
 export default class SyncStage implements ISyncStage {
+  public connectivityDelegate: ISyncStageConnectivityDelegate | null;
+  public userDelegate: ISyncStageUserDelegate | null;
+  
+  constructor(
+    userDelegate: ISyncStageUserDelegate | null,
+    connectivityDelegate: ISyncStageConnectivityDelegate | null,
+  ) {
+    this.userDelegate = userDelegate;
+    this.connectivityDelegate = connectivityDelegate;
+  }
+  
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     console.log('init');
     return SyncStageSDKErrorCode.OK;
