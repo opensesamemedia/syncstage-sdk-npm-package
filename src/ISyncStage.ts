@@ -17,13 +17,7 @@ export default interface ISyncStage{
     preview(sessionCode: string, userId: string): Promise<[ISession | null, SyncStageSDKErrorCode]>;
     changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode>;
     getReceiverVolume(identifier: string): Promise<number>;
-    toggleInternalMic(enable: boolean): Promise<SyncStageSDKErrorCode>;
-    getInternalMicEnabled(): Promise<boolean>;
-    toggleDirectMonitor(enable: boolean): Promise<SyncStageSDKErrorCode>;
-    getDirectMonitorEnabled(): Promise<boolean>;
-    getDirectMonitorVolume(): Promise<number>;
-    changeDirectMonitorVolume(volume: number): Promise<SyncStageSDKErrorCode>;
-    toggleMicrophone(mute: number): Promise<SyncStageSDKErrorCode>;
+    toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode>;
     isMicrophoneMuted(): Promise<boolean>;
     getReceiverMeasurements(identifier: string): Promise<IMeasurements>;
     getTransmitterMeasurements(): Promise<IMeasurements>;

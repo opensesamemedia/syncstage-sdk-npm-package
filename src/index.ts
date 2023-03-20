@@ -1,9 +1,6 @@
 import type ISyncStage from './ISyncStage';
 import {
-  MOCK_INTERNAL_MIC_ENABLED,
-  MOCK_DM_VOLUME,
   MOCK_RECEIVER_VOLUME,
-  MOCK_DIRECT_MONITOR_ENABLED,
   MOCK_IS_MICROPHONE_MUTED,
   MOCK_RECEIVER_MEASUREMENTS,
   MOCK_TRANSMITTER_MEASUREMENTS,
@@ -73,31 +70,7 @@ export default class SyncStage implements ISyncStage {
     return MOCK_RECEIVER_VOLUME;
   }
 
-  async toggleInternalMic(enable: boolean): Promise<SyncStageSDKErrorCode> {
-    return SyncStageSDKErrorCode.OK;
-  }
-
-  async getInternalMicEnabled(): Promise<boolean> {
-    return MOCK_INTERNAL_MIC_ENABLED;
-  }
-
-  async toggleDirectMonitor(enable: boolean): Promise<SyncStageSDKErrorCode> {
-    return SyncStageSDKErrorCode.OK;
-  }
-
-  async getDirectMonitorEnabled(): Promise<boolean> {
-    return MOCK_DIRECT_MONITOR_ENABLED;
-  }
-
-  async getDirectMonitorVolume(): Promise<number> {
-    return MOCK_DM_VOLUME;
-  }
-
-  async changeDirectMonitorVolume(volume: number): Promise<SyncStageSDKErrorCode> {
-    return SyncStageSDKErrorCode.OK;
-  }
-
-  async toggleMicrophone(mute: number): Promise<SyncStageSDKErrorCode> {
+  async toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode> {
     return SyncStageSDKErrorCode.OK;
   }
 

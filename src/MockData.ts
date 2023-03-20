@@ -7,9 +7,7 @@ import { Region, RegionZone } from './models/ZonesInRegionsList';
 
 export const MOCK_RECEIVER_VOLUME: number = 90;
 export const MOCK_INTERNAL_MIC_ENABLED: boolean = false;
-export const MOCK_DIRECT_MONITOR_ENABLED: boolean = false;
 export const MOCK_IS_MICROPHONE_MUTED: boolean = false;
-export const MOCK_DM_VOLUME: number = 80;
 
 export const MOCK_RECEIVER_MEASUREMENTS: IMeasurements = new Measurements(10, 2, 99);
 export const MOCK_TRANSMITTER_MEASUREMENTS: IMeasurements = new Measurements(15, 3, 87);
