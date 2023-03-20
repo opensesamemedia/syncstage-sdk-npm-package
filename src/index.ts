@@ -21,7 +21,7 @@ import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
-  
+
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
@@ -29,7 +29,7 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
   }
-  
+
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     console.log('init');
     return SyncStageSDKErrorCode.OK;
@@ -114,4 +114,13 @@ export default class SyncStage implements ISyncStage {
   }
 }
 
-export { SyncStageSDKErrorCode, ISyncStageConnectivityDelegate, ISyncStageUserDelegate };
+export {
+  ISyncStage,
+  SyncStageSDKErrorCode,
+  ISyncStageConnectivityDelegate,
+  ISyncStageUserDelegate,
+  IZonesInRegionsList,
+  ISessionIdentifier,
+  ISession,
+  IMeasurements,
+};
