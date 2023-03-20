@@ -1,5 +1,5 @@
 {
-  "name": "@opensesamemedia/syncstage-sdk-npm-package",
+  "name": "@opensesamemedia/syncstage-sdk",
   "version": "0.0.1",
   "description": "",
   "types": "./lib/types/index.d.ts",
