@@ -8,16 +8,20 @@ import {
   MOCK_SESSION_IDENTIFIER,
   MOCK_SESSION,
 } from './MockData';
+import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
+import WebSocketClient from './WebSocketClient';
 import type ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDelegate';
 import type ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
 
+
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
+  private ws: WebSocketClient;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -25,11 +29,14 @@ export default class SyncStage implements ISyncStage {
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
+    this.ws = new WebSocketClient("ws://localhost:18080");
   }
 
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     console.log('init');
+    await this.ws.sendMessage(SyncStageMessageType.ProvisionRequest, {applicationSecretId, applicationSecretKey})
     return SyncStageSDKErrorCode.OK;
+
   }
 
   async zonesList(): Promise<[IZonesInRegionsList | null, SyncStageSDKErrorCode]> {
