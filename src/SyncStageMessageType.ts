@@ -17,8 +17,6 @@ export enum SyncStageMessageType {
   LeaveResponse = 'LeaveResponse',
   Ping = 'Ping',
   Pong = 'Pong',
-  PreviewRequest = 'PreviewRequest',
-  PreviewResponse = 'PreviewResponse',
   ProvisionRequest = 'ProvisionRequest',
   ProvisionResponse = 'ProvisionResponse',
   ReceiverConnectivityChanged = 'ReceiverConnectivityChanged',
