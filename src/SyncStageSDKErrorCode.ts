@@ -9,7 +9,7 @@ enum SyncStageSDKErrorCode {
   'BAD_VOLUME_VALUE' = 6,
   'SESSION_NOT_JOINED' = 7,
   'AUDIO_SERVER_NOT_REACHABLE' = 8,
-  'DESKTOP_COMMUNICATION_ERROR' = 9,
+  'DESKTOP_AGENT_COMMUNICATION_ERROR' = 9,
 }
 
 export default SyncStageSDKErrorCode;

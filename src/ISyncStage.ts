@@ -3,13 +3,13 @@ import ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDe
 import ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
-import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
+import type { IZonesList } from './models/IZonesList';
 
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
   init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode>;
-  zonesList(): Promise<[IZonesInRegionsList | null, SyncStageSDKErrorCode]>;
+  zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]>;
   createSession(zoneId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
   join(
     sessionCode: string,

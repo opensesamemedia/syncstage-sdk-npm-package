@@ -6,7 +6,7 @@ import type ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectiv
 import type ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
-import type { IZonesInRegionsList } from './models/IZonesIRegionsList';
+import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
 
 const WS_ADDRESS = 'ws://localhost';
@@ -95,7 +95,7 @@ export default class SyncStage implements ISyncStage {
     response: IWebsocketPayload | null,
   ): SyncStageSDKErrorCode {
     if (response === null) {
-      return SyncStageSDKErrorCode.DESKTOP_COMMUNICATION_ERROR;
+      return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
     } else {
       // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
       // if(!this.responseTypeMatchesRequestType(requestType, response)){
@@ -109,7 +109,7 @@ export default class SyncStage implements ISyncStage {
   private castAgentResoinseContentToSDKResponseObject(responseType: SyncStageMessageType, content: any): any {
     switch (responseType) {
       case SyncStageMessageType.ZonesListResponse: {
-        return content as IZonesInRegionsList;
+        return content as IZonesList;
       }
 
       case SyncStageMessageType.CreateSessionResponse: {
@@ -154,7 +154,7 @@ export default class SyncStage implements ISyncStage {
     response: IWebsocketPayload | null,
   ): [any, SyncStageSDKErrorCode] {
     if (response === null) {
-      return [null, SyncStageSDKErrorCode.DESKTOP_COMMUNICATION_ERROR];
+      return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
     } else {
       // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
       // if(!this.responseTypeMatchesRequestType(requestType, response)){
@@ -173,7 +173,7 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  async zonesList(): Promise<[IZonesInRegionsList | null, SyncStageSDKErrorCode]> {
+  async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.ZonesListRequest;
     console.log(requestType);
 
@@ -273,7 +273,7 @@ export {
   SyncStageSDKErrorCode,
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
-  IZonesInRegionsList,
+  IZonesList as IZonesInRegionsList,
   ISessionIdentifier,
   ISession,
   IMeasurements,
