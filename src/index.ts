@@ -8,6 +8,7 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
+import { MOCK_IS_MICROPHONE_MUTED, MOCK_RECEIVER_MEASUREMENTS, MOCK_RECEIVER_VOLUME, MOCK_SESSION, MOCK_SESSION_IDENTIFIER, MOCK_TRANSMITTER_MEASUREMENTS, MOCK_ZONES_IN_REGION_LIST as MOCK_ZONES_LIST } from './MockData';
 
 const WS_ADDRESS = 'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.0';
@@ -15,7 +16,7 @@ const MIN_DRIVER_VERSION = '1.0.0';
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
-  private ws: WebSocketClient;
+  // private ws: WebSocketClient;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -24,10 +25,10 @@ export default class SyncStage implements ISyncStage {
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
-    this.ws = new WebSocketClient(
-      `${WS_ADDRESS}:${desktopAgentPort}/browserSdkConnect`, 
-      (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
-      );
+    // this.ws = new WebSocketClient(
+    //   `${WS_ADDRESS}:${desktopAgentPort}/browserSdkConnect`, 
+    //   (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
+    //   );
   }
 
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
@@ -169,24 +170,27 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { applicationSecretId, applicationSecretKey, minDriverVersion: MIN_DRIVER_VERSION });
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { applicationSecretId, applicationSecretKey, minDriverVersion: MIN_DRIVER_VERSION });
+    // return this.parseResponseOnlyErrorCode(requestType, response);
+    return SyncStageSDKErrorCode.OK;
   }
 
   async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.ZonesListRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, {});
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_ZONES_LIST, SyncStageSDKErrorCode.OK];
   }
 
   async createSession(zoneId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.CreateSessionRequest;
     console.log(`createSession ${requestType}`);
 
-    const response = await this.ws.sendMessage(requestType, { zoneId, userId });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { zoneId, userId });
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_SESSION_IDENTIFIER, SyncStageSDKErrorCode.OK];
   }
 
   async join(
@@ -199,72 +203,81 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { sessionCode, userId, displayName, latitude, longitude });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { sessionCode, userId, displayName, latitude, longitude });
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_SESSION, SyncStageSDKErrorCode.OK];
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.LeaveRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, {});
+    // return this.parseResponseOnlyErrorCode(requestType, response);
+    return SyncStageSDKErrorCode.OK;
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.SessionRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, {});
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_SESSION, SyncStageSDKErrorCode.OK];
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ChangeReceiverVolumeRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { identifier, volume });
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { identifier, volume });
+    // return this.parseResponseOnlyErrorCode(requestType, response);
+    return SyncStageSDKErrorCode.OK;
   }
 
   async getReceiverVolume(identifier: string): Promise<[number | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetReceiverVolumeRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { identifier });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { identifier });
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_RECEIVER_VOLUME, SyncStageSDKErrorCode.OK];
   }
 
   async toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ToggleMicrophoneRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { mute });
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { mute });
+    // return this.parseResponseOnlyErrorCode(requestType, response);
+    return SyncStageSDKErrorCode.OK;
   }
 
   async isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.IsMicrophoneMutedRequest;
     console.log(`session ${requestType}`);
 
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, {});
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_IS_MICROPHONE_MUTED, SyncStageSDKErrorCode.OK];
   }
 
   async getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetReceiverMeasurementsRequest;
     console.log(`session ${requestType}`);
 
-    const response = await this.ws.sendMessage(requestType, { identifier });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, { identifier });
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_RECEIVER_MEASUREMENTS, SyncStageSDKErrorCode.OK];
   }
 
   async getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetTransmitterMeasurementsRequest;
     console.log(`session ${requestType}`);
 
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    // const response = await this.ws.sendMessage(requestType, {});
+    // return this.parseResponseErrorCodeAndContent(requestType, response);
+    return [MOCK_TRANSMITTER_MEASUREMENTS, SyncStageSDKErrorCode.OK];
   }
 }
 
@@ -273,7 +286,7 @@ export {
   SyncStageSDKErrorCode,
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
-  IZonesList as IZonesInRegionsList,
+  IZonesList,
   ISessionIdentifier,
   ISession,
   IMeasurements,
