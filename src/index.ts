@@ -9,7 +9,8 @@ import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
 
-const WS_ADDRESS = 'ws://localhost';
+const BASE_WS_ADDRESS = 'ws://localhost';
+const WS_ADDRESS_SUFFIX = 'browserSdkConnect';
 const MIN_DRIVER_VERSION = '1.0.0';
 
 export default class SyncStage implements ISyncStage {
@@ -25,11 +26,12 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.ws = new WebSocketClient(
-      `${WS_ADDRESS}:${desktopAgentPort}/browserSdkConnect`, 
+      `${BASE_WS_ADDRESS}:${desktopAgentPort}/${WS_ADDRESS_SUFFIX}`, 
       (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
       );
   }
 
+  //#region Private methods
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
@@ -164,6 +166,7 @@ export default class SyncStage implements ISyncStage {
       return [this.castAgentResoinseContentToSDKResponseObject(response.type, response.content), response.errorCode];
     }
   }
+  //#endregion
 
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
