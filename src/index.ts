@@ -10,7 +10,6 @@ import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
 
 const BASE_WS_ADDRESS = 'ws://localhost';
-const WS_ADDRESS_SUFFIX = 'browserSdkConnect';
 const MIN_DRIVER_VERSION = '1.0.0';
 
 export default class SyncStage implements ISyncStage {
@@ -26,7 +25,7 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.ws = new WebSocketClient(
-      `${BASE_WS_ADDRESS}:${desktopAgentPort}/${WS_ADDRESS_SUFFIX}`, 
+      `${BASE_WS_ADDRESS}:${desktopAgentPort}`, 
       (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
       );
   }
