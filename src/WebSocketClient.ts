@@ -87,12 +87,12 @@ export default class {
       if (this.connected) {
         return;
       }
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
   }
 
   async sendMessage(type: SyncStageMessageType, content: any): Promise<IWebsocketPayload | null> {
-    await this.waitForTheConnection()
+    await this.waitForTheConnection();
     if (!this.connected) {
       console.log(`Cannot send ${type} message to ws, no connection.`);
       return null;
@@ -112,7 +112,7 @@ export default class {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS/1000}s elapsed without a response.`));
+          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response.`));
         }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
 
         this.requests.set(msgId, { resolve, timeout });
