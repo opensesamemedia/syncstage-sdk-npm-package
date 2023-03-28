@@ -1,6 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
 import { SyncStageMessageType } from './SyncStageMessageType';
 
+const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
+const RECONNECT_INTERVAL_MS = 2000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 10000;
 export interface IWebsocketPayload {
   type: SyncStageMessageType;
   msgId: string;
@@ -20,12 +23,13 @@ export default class {
   private ws: WebSocket;
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
-  
+  private connected: boolean = false;
+
   constructor(
-      url: string, 
-      onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
-      reconnectInterval = 1000
-    ) {
+    url: string,
+    onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
+    reconnectInterval = RECONNECT_INTERVAL_MS,
+  ) {
     this.url = url;
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
@@ -38,6 +42,7 @@ export default class {
     console.log(`Connecting to the websocket server: ${this.url}`);
     this.ws.addEventListener('open', () => {
       console.log('Connected to WebSocket server');
+      this.connected = true;
     });
 
     this.ws.addEventListener('message', (event) => {
@@ -52,7 +57,7 @@ export default class {
           resolve(data);
           this.requests.delete(msgId);
         } else {
-          console.log("Received message unrelated to any msgId, handling as delegate.")
+          console.log('Received message unrelated to any msgId, handling as delegate.');
           this.onDelegateMessage(type, content);
         }
       } catch (error) {
@@ -61,7 +66,8 @@ export default class {
     });
 
     this.ws.addEventListener('close', () => {
-      console.log('Disconnected from WebSocket server');
+      console.log('Disconnected from WebSocket server.');
+      this.connected = false;
       console.log(`Will reconnect in ${this.reconnectInterval}ms`);
       setTimeout(() => {
         this.connect();
@@ -71,10 +77,26 @@ export default class {
     this.ws.addEventListener('error', (error) => {
       console.error('WebSocket error:', error);
       this.ws.close();
+      this.connected = false;
     });
   }
 
+  private async waitForTheConnection(timeout: number = WAIT_FOR_CONNECTION_BEFORE_SENDING_MS) {
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeout) {
+      if (this.connected) {
+        return;
+      }
+      await new Promise(r => setTimeout(r, 100));
+    }
+  }
+
   async sendMessage(type: SyncStageMessageType, content: any): Promise<IWebsocketPayload | null> {
+    await this.waitForTheConnection()
+    if (!this.connected) {
+      console.log(`Cannot send ${type} message to ws, no connection.`);
+      return null;
+    }
     const msgId = uuidv4();
     const payload: IWebsocketPayload = {
       type,
@@ -90,8 +112,8 @@ export default class {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(new Error('Timeout: 10s elapsed without a response'));
-        }, 10000);
+          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS/1000}s elapsed without a response.`));
+        }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
 
         this.requests.set(msgId, { resolve, timeout });
       });
