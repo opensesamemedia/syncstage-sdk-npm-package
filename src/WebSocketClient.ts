@@ -58,7 +58,9 @@ export default class {
             Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
         ) {
           console.log(
-            `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS}. Last pong date: ${this.lastPongReceivedDate}. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
+            `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
+              this.lastPongReceivedDate
+            }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
           );
           this.reconnect();
         }
@@ -78,7 +80,7 @@ export default class {
           this.requests.delete(msgId);
 
           if (type === SyncStageMessageType.Pong) {
-            this.lastPongReceivedDate = new Date(time);
+            this.lastPongReceivedDate = new Date(time).getTime();
           }
         } else {
           console.log('Received message unrelated to any msgId, handling as delegate.');
@@ -93,7 +95,7 @@ export default class {
       console.log('Disconnected from WebSocket server.');
       this.connected = false;
       clearInterval(this.pingInterval);
-      console.log(`Will reconnect in ${this.reconnectInterval}ms`);
+      console.log(`Will reconnect in ${RECONNECT_INTERVAL_MS}ms`);
 
       this.reconnectInterval = setInterval(() => {
         this.reconnect();
