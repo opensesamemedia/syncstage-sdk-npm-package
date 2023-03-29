@@ -25,9 +25,11 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.ws = new WebSocketClient(
-      `${BASE_WS_ADDRESS}:${desktopAgentPort}`, 
-      (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
-      );
+      `${BASE_WS_ADDRESS}:${desktopAgentPort}`,
+      (responseType: SyncStageMessageType, content: any): void => {
+        this.onDelegateMessage(responseType, content);
+      },
+    );
   }
 
   //#region Private methods
@@ -35,55 +37,55 @@ export default class SyncStage implements ISyncStage {
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
-          console.log("calling connectivityDelegate.transmitterConnectivityChanged");
+          console.log('calling connectivityDelegate.transmitterConnectivityChanged');
           this.connectivityDelegate.transmitterConnectivityChanged(content.identifier);
         } else {
-          console.log("connectivityDelegate is not added");
+          console.log('connectivityDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.ReceiverConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
-          console.log("calling connectivityDelegate.receiverConnectivityChanged");
+          console.log('calling connectivityDelegate.receiverConnectivityChanged');
           this.connectivityDelegate.receiverConnectivityChanged(content.identifier, content.connected);
         } else {
-          console.log("connectivityDelegate is not added");
+          console.log('connectivityDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserJoined: {
         if (this.userDelegate !== null) {
-          console.log("calling userDelegate.userJoined");
+          console.log('calling userDelegate.userJoined');
           this.userDelegate.userJoined(content.identifier);
         } else {
-          console.log("userDelegate is not added");
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserLeft: {
         if (this.userDelegate !== null) {
-          console.log("calling userDelegate.userLeft");
+          console.log('calling userDelegate.userLeft');
           this.userDelegate.userLeft(content.identifier);
         } else {
-          console.log("userDelegate is not added");
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserMuted: {
         if (this.userDelegate !== null) {
-          console.log("calling userDelegate.userMuted");
+          console.log('calling userDelegate.userMuted');
           this.userDelegate.userMuted(content.identifier);
         } else {
-          console.log("userDelegate is not added");
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserUnmuted: {
         if (this.userDelegate !== null) {
-          console.log("calling userDelegate.userUnmuted");
+          console.log('calling userDelegate.userUnmuted');
           this.userDelegate.userUnmuted(content.identifier);
         } else {
-          console.log("userDelegate is not added");
+          console.log('userDelegate is not added');
         }
         break;
       }
@@ -152,7 +154,7 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.SessionResponse: {
         return content as ISession;
       }
-      
+
       // Responses with empty content
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.Pong:
@@ -189,7 +191,11 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { applicationSecretId, applicationSecretKey, minDriverVersion: MIN_DRIVER_VERSION });
+    const response = await this.ws.sendMessage(requestType, {
+      applicationSecretId,
+      applicationSecretKey,
+      minDriverVersion: MIN_DRIVER_VERSION,
+    });
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 

@@ -38,86 +38,126 @@ export default class {
     this.connect();
   }
 
+  private setReconnectInterval() {
+    console.log(`Will reconnect in ${RECONNECT_INTERVAL_MS}ms`);
+
+    if (this.reconnectInterval !== null) {
+      clearInterval(this.reconnectInterval);
+    }
+
+    this.reconnectInterval = setInterval(() => {
+      this.reconnect();
+    }, RECONNECT_INTERVAL_MS);
+  }
+
+  private onOpen() {
+    console.log('Connected to WebSocket server');
+
+    if (this.reconnectInterval !== null) {
+      clearInterval(this.reconnectInterval);
+    }
+
+    this.connected = true;
+    this.lastPongReceivedDate = null;
+    this.lastConnectedDate = Date.now();
+
+    this.pingInterval = setInterval(() => {
+      this.sendMessage(SyncStageMessageType.Ping, {});
+
+      if (
+        (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
+        (this.lastPongReceivedDate === null &&
+          this.lastConnectedDate != null &&
+          Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
+      ) {
+        console.log(
+          `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
+            this.lastPongReceivedDate
+          }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
+        );
+        this.reconnect();
+      }
+    }, PING_INTERVAL_MS);
+  }
+
+  private onMessage(event: MessageEvent<any>) {
+    console.log(`Received: ${event.data}`);
+    try {
+      const data: IWebsocketPayload = JSON.parse(event.data.toString()) as IWebsocketPayload;
+      const { msgId, errorCode, type, content, time } = data;
+
+      if (this.requests.has(msgId)) {
+        console.log(`Received response for msgId: ${msgId}  errorCode: ${errorCode}`);
+        const { resolve } = this.requests.get(msgId) as IPendingRequest;
+        resolve(data);
+        this.requests.delete(msgId);
+
+        if (type === SyncStageMessageType.Pong) {
+          this.lastPongReceivedDate = new Date(time).getTime();
+        }
+      } else {
+        console.log('Received message unrelated to any msgId, handling as delegate.');
+        this.onDelegateMessage(type, content);
+      }
+    } catch (error) {
+      console.log(`Could not parse websocket message ${error}`);
+    }
+  }
+
+  private onClose() {
+    console.log('Disconnected from WebSocket server.');
+    this.connected = false;
+    clearInterval(this.pingInterval);
+    this.setReconnectInterval();
+  }
+
+  private onError(error: Event) {
+    console.error('WebSocket error:', error);
+    clearInterval(this.pingInterval);
+    this.ws.close();
+    this.connected = false;
+
+    this.setReconnectInterval();
+  }
+
   private connect(): void {
     console.log(`Connecting to the websocket server: ${this.url}`);
     this.ws.addEventListener('open', () => {
-      console.log('Connected to WebSocket server');
-      clearInterval(this.reconnectInterval);
-      this.connected = true;
-      this.lastPongReceivedDate = null;
-      this.lastConnectedDate = Date.now();
-
-      this.pingInterval = setInterval(() => {
-        this.sendMessage(SyncStageMessageType.Ping, {});
-
-        if (
-          (this.lastPongReceivedDate !== null &&
-            Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
-          (this.lastPongReceivedDate === null &&
-            this.lastConnectedDate != null &&
-            Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
-        ) {
-          console.log(
-            `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
-              this.lastPongReceivedDate
-            }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
-          );
-          this.reconnect();
-        }
-      }, PING_INTERVAL_MS);
+      this.onOpen();
     });
 
     this.ws.addEventListener('message', (event) => {
-      console.log(`Received: ${event.data}`);
-      try {
-        const data: IWebsocketPayload = JSON.parse(event.data.toString()) as IWebsocketPayload;
-        const { msgId, errorCode, type, content, time } = data;
-
-        if (this.requests.has(msgId)) {
-          console.log(`Received response for msgId: ${msgId}  errorCode: ${errorCode}`);
-          const { resolve } = this.requests.get(msgId) as IPendingRequest;
-          resolve(data);
-          this.requests.delete(msgId);
-
-          if (type === SyncStageMessageType.Pong) {
-            this.lastPongReceivedDate = new Date(time).getTime();
-          }
-        } else {
-          console.log('Received message unrelated to any msgId, handling as delegate.');
-          this.onDelegateMessage(type, content);
-        }
-      } catch (error) {
-        console.log(`Could not parse websocket message ${error}`);
-      }
+      this.onMessage(event);
     });
 
     this.ws.addEventListener('close', () => {
-      console.log('Disconnected from WebSocket server.');
-      this.connected = false;
-      clearInterval(this.pingInterval);
-      console.log(`Will reconnect in ${RECONNECT_INTERVAL_MS}ms`);
-
-      this.reconnectInterval = setInterval(() => {
-        this.reconnect();
-      }, RECONNECT_INTERVAL_MS);
+      this.onClose();
     });
 
     this.ws.addEventListener('error', (error) => {
-      console.error('WebSocket error:', error);
-      clearInterval(this.pingInterval);
-      this.ws.close();
-      this.connected = false;
-
-      this.reconnectInterval = setInterval(() => {
-        this.reconnect();
-      }, RECONNECT_INTERVAL_MS);
+      this.onError(error);
     });
   }
 
-  reconnect() {
+  private reconnect() {
     console.log('Reconnecting to the websocket server...');
 
     if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+      this.ws.removeEventListener('open', () => {
+        this.onOpen();
+      });
+
+      this.ws.removeEventListener('message', (event) => {
+        this.onMessage(event);
+      });
+
+      this.ws.removeEventListener('close', () => {
+        this.onClose();
+      });
+
+      this.ws.removeEventListener('error', (error) => {
+        this.onError(error);
+      });
       this.ws.close();
       this.connected = false;
     }
