@@ -35,37 +35,55 @@ export default class SyncStage implements ISyncStage {
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
+          console.log("calling connectivityDelegate.transmitterConnectivityChanged");
           this.connectivityDelegate.transmitterConnectivityChanged(content.identifier);
+        } else {
+          console.log("connectivityDelegate is not added");
         }
         break;
       }
       case SyncStageMessageType.ReceiverConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
+          console.log("calling connectivityDelegate.receiverConnectivityChanged");
           this.connectivityDelegate.receiverConnectivityChanged(content.identifier, content.connected);
+        } else {
+          console.log("connectivityDelegate is not added");
         }
         break;
       }
       case SyncStageMessageType.UserJoined: {
         if (this.userDelegate !== null) {
+          console.log("calling userDelegate.userJoined");
           this.userDelegate.userJoined(content.identifier);
+        } else {
+          console.log("userDelegate is not added");
         }
         break;
       }
       case SyncStageMessageType.UserLeft: {
         if (this.userDelegate !== null) {
+          console.log("calling userDelegate.userLeft");
           this.userDelegate.userLeft(content.identifier);
+        } else {
+          console.log("userDelegate is not added");
         }
         break;
       }
       case SyncStageMessageType.UserMuted: {
         if (this.userDelegate !== null) {
+          console.log("calling userDelegate.userMuted");
           this.userDelegate.userMuted(content.identifier);
+        } else {
+          console.log("userDelegate is not added");
         }
         break;
       }
       case SyncStageMessageType.UserUnmuted: {
         if (this.userDelegate !== null) {
+          console.log("calling userDelegate.userUnmuted");
           this.userDelegate.userUnmuted(content.identifier);
+        } else {
+          console.log("userDelegate is not added");
         }
         break;
       }

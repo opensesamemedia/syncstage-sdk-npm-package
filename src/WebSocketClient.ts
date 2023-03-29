@@ -4,6 +4,7 @@ import { SyncStageMessageType } from './SyncStageMessageType';
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
 const RECONNECT_INTERVAL_MS = 2000;
 const WAIT_FOR_RESPONSE_TIMEOUT_MS = 10000;
+const PING_INTERVAL_MS = 5000;
 export interface IWebsocketPayload {
   type: SyncStageMessageType;
   msgId: string;
@@ -24,6 +25,7 @@ export default class {
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
   private connected: boolean = false;
+  private pingInterval: any;
 
   constructor(
     url: string,
@@ -43,6 +45,10 @@ export default class {
     this.ws.addEventListener('open', () => {
       console.log('Connected to WebSocket server');
       this.connected = true;
+
+      this.pingInterval = setInterval(() => {
+        this.sendMessage(SyncStageMessageType.Ping, {});
+      }, PING_INTERVAL_MS);
     });
 
     this.ws.addEventListener('message', (event) => {
@@ -68,6 +74,7 @@ export default class {
     this.ws.addEventListener('close', () => {
       console.log('Disconnected from WebSocket server.');
       this.connected = false;
+      clearInterval(this.pingInterval);
       console.log(`Will reconnect in ${this.reconnectInterval}ms`);
       setTimeout(() => {
         this.connect();
@@ -76,6 +83,7 @@ export default class {
 
     this.ws.addEventListener('error', (error) => {
       console.error('WebSocket error:', error);
+      clearInterval(this.pingInterval);
       this.ws.close();
       this.connected = false;
     });
