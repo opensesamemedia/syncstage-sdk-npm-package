@@ -27,12 +27,10 @@ export default class {
   private connected: boolean = false;
   private pingInterval: any;
   private reconnectInterval: any;
-  private lastPongReceivedDate: Date | null = null;
+  private lastPongReceivedDate: number | null = null;
+  private lastConnectedDate: number | null = null;
 
-  constructor(
-    url: string,
-    onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
-  ) {
+  constructor(url: string, onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void) {
     this.url = url;
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
@@ -47,13 +45,21 @@ export default class {
       clearInterval(this.reconnectInterval);
       this.connected = true;
       this.lastPongReceivedDate = null;
+      this.lastConnectedDate = Date.now();
 
       this.pingInterval = setInterval(() => {
         this.sendMessage(SyncStageMessageType.Ping, {});
-        
-        // @ts-expect-error
-        if (this.lastPongReceivedDate !== null && (Date.now() - this.lastPongReceivedDate) > ALLOWED_TIME_WITHOUT_PONG_MS){
-          console.log(`Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS}. Last pong date: ${this.lastPongReceivedDate}. Reconnecting.`)
+
+        if (
+          (this.lastPongReceivedDate !== null &&
+            Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
+          (this.lastPongReceivedDate === null &&
+            this.lastConnectedDate != null &&
+            Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
+        ) {
+          console.log(
+            `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS}. Last pong date: ${this.lastPongReceivedDate}. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
+          );
           this.reconnect();
         }
       }, PING_INTERVAL_MS);
@@ -70,11 +76,10 @@ export default class {
           const { resolve } = this.requests.get(msgId) as IPendingRequest;
           resolve(data);
           this.requests.delete(msgId);
-          
-          if(type === SyncStageMessageType.Pong){
+
+          if (type === SyncStageMessageType.Pong) {
             this.lastPongReceivedDate = new Date(time);
           }
-
         } else {
           console.log('Received message unrelated to any msgId, handling as delegate.');
           this.onDelegateMessage(type, content);
@@ -93,7 +98,6 @@ export default class {
       this.reconnectInterval = setInterval(() => {
         this.reconnect();
       }, RECONNECT_INTERVAL_MS);
-
     });
 
     this.ws.addEventListener('error', (error) => {
@@ -101,7 +105,7 @@ export default class {
       clearInterval(this.pingInterval);
       this.ws.close();
       this.connected = false;
-      
+
       this.reconnectInterval = setInterval(() => {
         this.reconnect();
       }, RECONNECT_INTERVAL_MS);
@@ -117,7 +121,7 @@ export default class {
     }
 
     this.ws = new WebSocket(this.url);
-    this.connect()
+    this.connect();
   }
 
   private async waitForTheConnection(timeout: number = WAIT_FOR_CONNECTION_BEFORE_SENDING_MS) {
