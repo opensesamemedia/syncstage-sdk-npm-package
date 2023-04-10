@@ -139,7 +139,11 @@ export default class {
     });
   }
 
-  private reconnect() {
+  public isConnected(): boolean {
+    return this.connected;
+  }
+
+  reconnect() {
     console.log('Reconnecting to the websocket server...');
 
     if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
@@ -197,7 +201,7 @@ export default class {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response.`));
+          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response for ${type}.`));
         }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
 
         this.requests.set(msgId, { resolve, timeout });

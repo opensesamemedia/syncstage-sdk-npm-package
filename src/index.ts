@@ -9,6 +9,8 @@ import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
 
+// const BASE_WS_ADDRESS = 'ws://move2edges-Mac-mini.local';
+// const BASE_WS_ADDRESS = 'ws://10.64.1.9';
 const BASE_WS_ADDRESS = 'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.0';
 
@@ -30,6 +32,7 @@ export default class SyncStage implements ISyncStage {
         this.onDelegateMessage(responseType, content);
       },
     );
+    console.log("Welcome to SyncStage")
   }
 
   //#region Private methods
@@ -56,7 +59,7 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.UserJoined: {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userJoined');
-          this.userDelegate.userJoined(content.identifier);
+          this.userDelegate.userJoined(content);
         } else {
           console.log('userDelegate is not added');
         }
@@ -84,6 +87,15 @@ export default class SyncStage implements ISyncStage {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userUnmuted');
           this.userDelegate.userUnmuted(content.identifier);
+        } else {
+          console.log('userDelegate is not added');
+        }
+        break;
+      }
+      case SyncStageMessageType.SessionOut: {
+        if (this.userDelegate !== null) {
+          console.log('calling userDelegate.sessionOut');
+          this.userDelegate.sessionOut();
         } else {
           console.log('userDelegate is not added');
         }
@@ -197,6 +209,10 @@ export default class SyncStage implements ISyncStage {
       minDriverVersion: MIN_DRIVER_VERSION,
     });
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  isDesktopAgentConnected(): boolean{
+    return this.ws.isConnected();
   }
 
   async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {
