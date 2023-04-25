@@ -1,3 +1,5 @@
+import dotenv from 'dotenv';
+
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -8,11 +10,13 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
+import { version } from "../package.json";
 
-// const BASE_WS_ADDRESS = 'ws://move2edges-Mac-mini.local';
-// const BASE_WS_ADDRESS = 'ws://10.64.1.9';
-const BASE_WS_ADDRESS = 'ws://localhost';
-const MIN_DRIVER_VERSION = '1.0.0';
+dotenv.config();
+
+const BASE_WS_ADDRESS =  process.env.REACT_APP_AGENT_ADDRESS ?? 'ws://localhost';
+// const BASE_WS_ADDRESS =  'ws://localhost';
+const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -211,8 +215,12 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  isDesktopAgentConnected(): boolean{
+  public isDesktopAgentConnected(): boolean{
     return this.ws.isConnected();
+  }
+
+  public getSDKVersion(): string{
+    return "123" + version;
   }
 
   async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {

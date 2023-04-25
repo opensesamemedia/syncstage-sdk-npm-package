@@ -10,6 +10,7 @@ export default interface ISyncStage {
   userDelegate: ISyncStageUserDelegate | null;
   init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode>;
   isDesktopAgentConnected(): boolean;
+  getSDKVersion(): string;
   zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]>;
   createSession(zoneId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
   join(

@@ -1,6 +1,6 @@
 {
-  "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
-  "version": "0.0.27-development",
+  "name": "@opensesamemedia/syncstage-sdk-npm-package",
+  "version": "0.0.29-development",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
@@ -37,10 +37,12 @@
   "devDependencies": {
     "@types/chai": "^4.3.4",
     "@types/mocha": "^9.1.1",
+    "@types/node": "^18.16.0",
     "@types/uuid": "^9.0.1",
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
     "chai": "^4.3.7",
+    "dotenv": "^16.0.3",
     "eslint": "^8.36.0",
     "mocha": "^10.2.0",
     "prettier": "2.8.4",
