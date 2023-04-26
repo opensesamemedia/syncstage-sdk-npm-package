@@ -1,5 +1,3 @@
-import dotenv from 'dotenv';
-
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -10,11 +8,9 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
-import { version } from "../package.json";
+import { version } from './version';
 
-dotenv.config();
-
-const BASE_WS_ADDRESS =  process.env.AGENT_ADDRESS ?? 'ws://localhost';
+const BASE_WS_ADDRESS =  'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
@@ -26,11 +22,12 @@ export default class SyncStage implements ISyncStage {
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
     desktopAgentPort: number = 18080,
+    base_ws_address: string = BASE_WS_ADDRESS
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.ws = new WebSocketClient(
-      `${BASE_WS_ADDRESS}:${desktopAgentPort}`,
+      `${base_ws_address}:${desktopAgentPort}`,
       (responseType: SyncStageMessageType, content: any): void => {
         this.onDelegateMessage(responseType, content);
       },
@@ -221,7 +218,7 @@ export default class SyncStage implements ISyncStage {
   }
 
   public getSDKVersion(): string{
-    return "123" + version;
+    return version;
   }
 
   async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {
