@@ -14,8 +14,7 @@ import { version } from "../package.json";
 
 dotenv.config();
 
-const BASE_WS_ADDRESS =  process.env.REACT_APP_AGENT_ADDRESS ?? 'ws://localhost';
-// const BASE_WS_ADDRESS =  'ws://localhost';
+const BASE_WS_ADDRESS =  process.env.AGENT_ADDRESS ?? 'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
@@ -206,6 +205,8 @@ export default class SyncStage implements ISyncStage {
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
+
+    this.ws.reconnect();
 
     const response = await this.ws.sendMessage(requestType, {
       applicationSecretId,
