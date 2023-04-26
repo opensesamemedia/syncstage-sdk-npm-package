@@ -1,6 +1,6 @@
 {
-  "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
-  "version": "0.0.31-development",
+  "name": "@opensesamemedia/syncstage",
+  "version": "0.0.2-rc.1",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
@@ -43,7 +43,6 @@
     "@typescript-eslint/eslint-plugin": "^5.55.0",
     "@typescript-eslint/parser": "^5.55.0",
     "chai": "^4.3.7",
-    "cross-env": "^7.0.3",
     "eslint": "^8.36.0",
     "mocha": "^10.2.0",
     "prettier": "2.8.4",
