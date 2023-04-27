@@ -2,7 +2,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { SyncStageMessageType } from './SyncStageMessageType';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
-const RECONNECT_INTERVAL_MS = 2000;
+const RECONNECT_INTERVAL_MS = 4000;
 const WAIT_FOR_RESPONSE_TIMEOUT_MS = 10000;
 const PING_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
@@ -29,6 +29,7 @@ export default class {
   private reconnectInterval: any;
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
+  private controlledDisconnection: boolean = false;
 
   constructor(url: string, onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void) {
     this.url = url;
@@ -43,10 +44,11 @@ export default class {
 
     if (this.reconnectInterval !== null) {
       clearInterval(this.reconnectInterval);
+      this.reconnectInterval = null;
     }
 
-    this.reconnectInterval = setInterval(() => {
-      this.reconnect();
+    this.reconnectInterval = setInterval(async () => {
+      await this.reconnect();
     }, RECONNECT_INTERVAL_MS);
   }
 
@@ -55,13 +57,15 @@ export default class {
 
     if (this.reconnectInterval !== null) {
       clearInterval(this.reconnectInterval);
+      this.reconnectInterval = null;
     }
+    this.controlledDisconnection = false;
 
     this.connected = true;
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
-    this.pingInterval = setInterval(() => {
+    this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
 
       if (
@@ -75,7 +79,7 @@ export default class {
             this.lastPongReceivedDate
           }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
         );
-        this.reconnect();
+        await this.reconnect();
       }
     }, PING_INTERVAL_MS);
   }
@@ -108,7 +112,14 @@ export default class {
     console.log('Disconnected from WebSocket server.');
     this.connected = false;
     clearInterval(this.pingInterval);
-    this.setReconnectInterval();
+
+    if (!this.controlledDisconnection) {
+      this.setReconnectInterval();
+    } else{
+      this.connect()
+    }
+
+    this.controlledDisconnection = false;
   }
 
   private onError(error: Event) {
@@ -116,7 +127,7 @@ export default class {
     clearInterval(this.pingInterval);
     this.ws.close();
     this.connected = false;
-
+    this.controlledDisconnection = false;
     this.setReconnectInterval();
   }
 
@@ -143,31 +154,41 @@ export default class {
     return this.connected;
   }
 
-  reconnect() {
+  async reconnect() {
     console.log('Reconnecting to the websocket server...');
 
-    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-      this.ws.removeEventListener('open', () => {
-        this.onOpen();
-      });
+    try {
+      if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+        this.controlledDisconnection = true;
+        this.ws.removeEventListener('open', () => {
+          this.onOpen();
+        });
 
-      this.ws.removeEventListener('message', (event) => {
-        this.onMessage(event);
-      });
+        this.ws.removeEventListener('message', (event) => {
+          this.onMessage(event);
+        });
 
-      this.ws.removeEventListener('close', () => {
-        this.onClose();
-      });
+        this.ws.removeEventListener('close', () => {
+          this.onClose();
+        });
 
-      this.ws.removeEventListener('error', (error) => {
-        this.onError(error);
-      });
-      this.ws.close();
-      this.connected = false;
+        this.ws.removeEventListener('error', (error) => {
+          this.onError(error);
+        });
+        this.ws.close();
+        while( this.ws && this.ws.readyState !== WebSocket.CLOSED ) {
+          console.log("Waiting for websocket to close...")
+          await new Promise(r => setTimeout(r, 400));
+        }
+        this.connected = false;
+      }
+
+      this.ws = new WebSocket(this.url);
+      this.connect();
+    } catch (error) {
+      console.log(`Could not reconnect to the Websocket. ${error}`);
+      return null;
     }
-
-    this.ws = new WebSocket(this.url);
-    this.connect();
   }
 
   private async waitForTheConnection(timeout: number = WAIT_FOR_CONNECTION_BEFORE_SENDING_MS) {
