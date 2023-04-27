@@ -3,7 +3,7 @@ import { SyncStageMessageType } from './SyncStageMessageType';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
 const RECONNECT_INTERVAL_MS = 4000;
-const WAIT_FOR_RESPONSE_TIMEOUT_MS = 10000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
 const PING_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
 export interface IWebsocketPayload {
