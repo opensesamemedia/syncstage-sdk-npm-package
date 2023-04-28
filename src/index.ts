@@ -23,17 +23,14 @@ export default class SyncStage implements ISyncStage {
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
-    desktopAgentPort: number = 18080,
+    desktopAgentPort = 18080,
     baseWsAddress: string = BASE_WS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
-    this.ws = new WebSocketClient(
-      `${baseWsAddress}:${desktopAgentPort}`,
-      (responseType: SyncStageMessageType, content: any): void => {
-        this.onDelegateMessage(responseType, content);
-      },
-    );
+    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, (responseType: SyncStageMessageType, content: any): void => {
+      this.onDelegateMessage(responseType, content);
+    });
     console.log('Welcome to SyncStage');
   }
 
@@ -125,10 +122,7 @@ export default class SyncStage implements ISyncStage {
     return true;
   }
 
-  private parseResponseOnlyErrorCode(
-    requestType: SyncStageMessageType,
-    response: IWebsocketPayload | null,
-  ): SyncStageSDKErrorCode {
+  private parseResponseOnlyErrorCode(requestType: SyncStageMessageType, response: IWebsocketPayload | null): SyncStageSDKErrorCode {
     if (response === null) {
       return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
     }
@@ -319,6 +313,8 @@ export default class SyncStage implements ISyncStage {
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
+
+  register;
 }
 
 export {

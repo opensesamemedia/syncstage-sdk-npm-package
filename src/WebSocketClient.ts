@@ -24,17 +24,15 @@ export default class {
   private ws: WebSocket;
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
-  private connected: boolean = false;
+  private connected = false;
   private pingInterval: any;
   private reconnectInterval: any;
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
-  private controlledDisconnection: boolean = false;
+  private controlledDisconnection = false;
+  public onWebsocketReconnected: (() => void) | null = null;
 
-  constructor(
-    url: string,
-    onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
-  ) {
+  constructor(url: string, onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void) {
     this.url = url;
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
@@ -72,18 +70,15 @@ export default class {
       this.sendMessage(SyncStageMessageType.Ping, {});
 
       if (
-        (this.lastPongReceivedDate !== null &&
-          Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
+        (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
         (this.lastPongReceivedDate === null &&
           this.lastConnectedDate != null &&
           Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
       ) {
         console.log(
-          `Did not receive Pong message since at least ${
-            ALLOWED_TIME_WITHOUT_PONG_MS / 1000
-          }s. Last pong date: ${this.lastPongReceivedDate}. Last connected date: ${
-            this.lastConnectedDate
-          }. Reconnecting.`,
+          `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
+            this.lastPongReceivedDate
+          }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
         );
         await this.reconnect();
       }
@@ -194,6 +189,12 @@ export default class {
 
       this.ws = new WebSocket(this.url);
       this.connect();
+      while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (this.onWebsocketReconnected && this.ws.readyState === WebSocket.OPEN) {
+        this.onWebsocketReconnected();
+      }
     } catch (error) {
       console.log(`Could not reconnect to the Websocket. ${error}`);
       return null;
@@ -235,13 +236,7 @@ export default class {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(
-            new Error(
-              `Timeout: ${
-                WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000
-              }s elapsed without a response for ${type}.`,
-            ),
-          );
+          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response for ${type}.`));
         }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
 
         this.requests.set(msgId, { resolve, timeout });
