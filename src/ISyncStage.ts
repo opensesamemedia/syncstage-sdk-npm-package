@@ -12,10 +12,7 @@ export default interface ISyncStage {
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
   zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]>;
-  createSession(
-    zoneId: string,
-    userId: string,
-  ): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
+  createSession(zoneId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
   join(
     sessionCode: string,
     userId: string,
@@ -29,8 +26,8 @@ export default interface ISyncStage {
   getReceiverVolume(identifier: string): Promise<[number | null, SyncStageSDKErrorCode]>;
   toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode>;
   isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]>;
-  getReceiverMeasurements(
-    identifier: string,
-  ): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
+  getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
+  registerDesktopAgentReconnectedCallback(onWebsocketReconnected: () => void): void;
+  unregisterDesktopAgentReconnectedCallback(): void;
 }

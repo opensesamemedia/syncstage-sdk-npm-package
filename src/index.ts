@@ -314,7 +314,17 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  register;
+  registerDesktopAgentReconnectedCallback(onWebsocketReconnected: () => void): void {
+    if (this.ws) {
+      this.ws.onWebsocketReconnected = onWebsocketReconnected;
+    }
+  }
+
+  unregisterDesktopAgentReconnectedCallback(): void {
+    if (this.ws) {
+      this.ws.onWebsocketReconnected = null;
+    }
+  }
 }
 
 export {
