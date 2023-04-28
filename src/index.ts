@@ -126,10 +126,9 @@ export default class SyncStage implements ISyncStage {
     if (response === null) {
       return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
     }
-    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-    // if(!this.responseTypeMatchesRequestType(requestType, response)){
-    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-    // }
+    if (!this.responseTypeMatchesRequestType(requestType, response)) {
+      return SyncStageSDKErrorCode.UNKNOWN_ERROR;
+    }
 
     return response.errorCode;
   }
