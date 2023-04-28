@@ -1,8 +1,13 @@
-import { IHostInfo, IConnectionInfo } from "./IConnectionInfo";
-import { Connection } from "./Session";
+import { IHostInfo, IConnectionInfo } from './IConnectionInfo';
+import { Connection } from './Session';
 
 export class HostInfo implements IHostInfo {
-  constructor(public port: number, public address: string, public audioServerId: string, public streamingUrl: string) {}
+  constructor(
+    public port: number,
+    public address: string,
+    public audioServerId: string,
+    public streamingUrl: string,
+  ) {}
 }
 
 export default class ConnectionInfo implements IConnectionInfo {

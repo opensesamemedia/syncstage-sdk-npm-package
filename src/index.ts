@@ -8,64 +8,95 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
-import { MOCK_IS_MICROPHONE_MUTED, MOCK_RECEIVER_MEASUREMENTS, MOCK_RECEIVER_VOLUME, MOCK_SESSION, MOCK_SESSION_IDENTIFIER, MOCK_TRANSMITTER_MEASUREMENTS, MOCK_ZONES_IN_REGION_LIST as MOCK_ZONES_LIST } from './MockData';
 
-const WS_ADDRESS = 'ws://localhost';
-const MIN_DRIVER_VERSION = '1.0.0';
+import { version } from './version';
+
+const BASE_WS_ADDRESS = 'ws://localhost';
+const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
+
   public userDelegate: ISyncStageUserDelegate | null;
-  // private ws: WebSocketClient;
+  private ws: WebSocketClient;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
-    desktopAgentPort: number = 18080,
+    desktopAgentPort = 18080,
+    baseWsAddress: string = BASE_WS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
-    // this.ws = new WebSocketClient(
-    //   `${WS_ADDRESS}:${desktopAgentPort}/browserSdkConnect`, 
-    //   (responseType: SyncStageMessageType, content: any) : void => {this.onDelegateMessage(responseType, content)}
-    //   );
+    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, (responseType: SyncStageMessageType, content: any): void => {
+      this.onDelegateMessage(responseType, content);
+    });
+    console.log('Welcome to SyncStage');
   }
 
+  // #region Private methods
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
+          console.log('calling connectivityDelegate.transmitterConnectivityChanged');
           this.connectivityDelegate.transmitterConnectivityChanged(content.identifier);
+        } else {
+          console.log('connectivityDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.ReceiverConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
+          console.log('calling connectivityDelegate.receiverConnectivityChanged');
           this.connectivityDelegate.receiverConnectivityChanged(content.identifier, content.connected);
+        } else {
+          console.log('connectivityDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserJoined: {
         if (this.userDelegate !== null) {
-          this.userDelegate.userJoined(content.identifier);
+          console.log('calling userDelegate.userJoined');
+          this.userDelegate.userJoined(content);
+        } else {
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserLeft: {
         if (this.userDelegate !== null) {
+          console.log('calling userDelegate.userLeft');
           this.userDelegate.userLeft(content.identifier);
+        } else {
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserMuted: {
         if (this.userDelegate !== null) {
+          console.log('calling userDelegate.userMuted');
           this.userDelegate.userMuted(content.identifier);
+        } else {
+          console.log('userDelegate is not added');
         }
         break;
       }
       case SyncStageMessageType.UserUnmuted: {
         if (this.userDelegate !== null) {
+          console.log('calling userDelegate.userUnmuted');
           this.userDelegate.userUnmuted(content.identifier);
+        } else {
+          console.log('userDelegate is not added');
+        }
+        break;
+      }
+      case SyncStageMessageType.SessionOut: {
+        if (this.userDelegate !== null) {
+          console.log('calling userDelegate.sessionOut');
+          this.userDelegate.sessionOut();
+        } else {
+          console.log('userDelegate is not added');
         }
         break;
       }
@@ -91,20 +122,15 @@ export default class SyncStage implements ISyncStage {
     return true;
   }
 
-  private parseResponseOnlyErrorCode(
-    requestType: SyncStageMessageType,
-    response: IWebsocketPayload | null,
-  ): SyncStageSDKErrorCode {
+  private parseResponseOnlyErrorCode(requestType: SyncStageMessageType, response: IWebsocketPayload | null): SyncStageSDKErrorCode {
     if (response === null) {
       return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
-    } else {
-      // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-      // if(!this.responseTypeMatchesRequestType(requestType, response)){
-      //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-      // }
-
-      return response.errorCode;
     }
+    if (!this.responseTypeMatchesRequestType(requestType, response)) {
+      return SyncStageSDKErrorCode.UNKNOWN_ERROR;
+    }
+
+    return response.errorCode;
   }
 
   private castAgentResoinseContentToSDKResponseObject(responseType: SyncStageMessageType, content: any): any {
@@ -129,12 +155,11 @@ export default class SyncStage implements ISyncStage {
         return content as IMeasurements;
       }
       // ISession response
-      case SyncStageMessageType.JoinResponse: {
-      }
+      case SyncStageMessageType.JoinResponse:
       case SyncStageMessageType.SessionResponse: {
         return content as ISession;
       }
-      
+
       // Responses with empty content
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.Pong:
@@ -156,23 +181,36 @@ export default class SyncStage implements ISyncStage {
   ): [any, SyncStageSDKErrorCode] {
     if (response === null) {
       return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
-    } else {
-      // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-      // if(!this.responseTypeMatchesRequestType(requestType, response)){
-      //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-      // }
-
-      return [this.castAgentResoinseContentToSDKResponseObject(response.type, response.content), response.errorCode];
     }
+    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
+    // if(!this.responseTypeMatchesRequestType(requestType, response)){
+    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
+    // }
+
+    return [this.castAgentResoinseContentToSDKResponseObject(response.type, response.content), response.errorCode];
   }
+  // #endregion
 
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, { applicationSecretId, applicationSecretKey, minDriverVersion: MIN_DRIVER_VERSION });
-    // return this.parseResponseOnlyErrorCode(requestType, response);
-    return SyncStageSDKErrorCode.OK;
+    await this.ws.reconnect();
+
+    const response = await this.ws.sendMessage(requestType, {
+      applicationSecretId,
+      applicationSecretKey,
+      minDriverVersion: MIN_DRIVER_VERSION,
+    });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  isDesktopAgentConnected(): boolean {
+    return this.ws.isConnected();
+  }
+
+  getSDKVersion(): string {
+    return version;
   }
 
   async zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]> {
@@ -203,9 +241,14 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, { sessionCode, userId, displayName, latitude, longitude });
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_SESSION, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, {
+      sessionCode,
+      userId,
+      displayName,
+      latitude,
+      longitude,
+    });
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
@@ -278,6 +321,18 @@ export default class SyncStage implements ISyncStage {
     // const response = await this.ws.sendMessage(requestType, {});
     // return this.parseResponseErrorCodeAndContent(requestType, response);
     return [MOCK_TRANSMITTER_MEASUREMENTS, SyncStageSDKErrorCode.OK];
+  }
+
+  registerDesktopAgentReconnectedCallback(onWebsocketReconnected: () => void): void {
+    if (this.ws) {
+      this.ws.onWebsocketReconnected = onWebsocketReconnected;
+    }
+  }
+
+  unregisterDesktopAgentReconnectedCallback(): void {
+    if (this.ws) {
+      this.ws.onWebsocketReconnected = null;
+    }
   }
 }
 

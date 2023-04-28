@@ -29,6 +29,7 @@ export enum SyncStageMessageType {
   UserLeft = 'UserLeft',
   UserMuted = 'UserMuted',
   UserUnmuted = 'UserUnmuted',
+  SessionOut = 'SessionOut',
   ZonesListRequest = 'ZonesListRequest',
   ZonesListResponse = 'ZonesListResponse',
 }
