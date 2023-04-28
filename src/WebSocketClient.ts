@@ -95,7 +95,6 @@ export default class {
       }
 
       if (this.requests.has(msgId)) {
-        console.log(`Received response for msgId: ${msgId}  errorCode: ${errorCode}`);
         const { resolve } = this.requests.get(msgId) as IPendingRequest;
         resolve(data);
         this.requests.delete(msgId);
