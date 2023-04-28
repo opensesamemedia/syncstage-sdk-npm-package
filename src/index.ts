@@ -10,32 +10,34 @@ import type { IZonesList } from './models/IZonesList';
 import { RequestResponseMap } from './RequestResponseMap';
 import { version } from './version';
 
-const BASE_WS_ADDRESS =  'ws://localhost';
+const BASE_WS_ADDRESS = 'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
+
   public userDelegate: ISyncStageUserDelegate | null;
+
   private ws: WebSocketClient;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
     desktopAgentPort: number = 18080,
-    base_ws_address: string = BASE_WS_ADDRESS
+    baseWsAddress: string = BASE_WS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.ws = new WebSocketClient(
-      `${base_ws_address}:${desktopAgentPort}`,
+      `${baseWsAddress}:${desktopAgentPort}`,
       (responseType: SyncStageMessageType, content: any): void => {
         this.onDelegateMessage(responseType, content);
       },
     );
-    console.log("Welcome to SyncStage")
+    console.log('Welcome to SyncStage');
   }
 
-  //#region Private methods
+  // #region Private methods
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
@@ -129,14 +131,13 @@ export default class SyncStage implements ISyncStage {
   ): SyncStageSDKErrorCode {
     if (response === null) {
       return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
-    } else {
-      // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-      // if(!this.responseTypeMatchesRequestType(requestType, response)){
-      //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-      // }
-
-      return response.errorCode;
     }
+    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
+    // if(!this.responseTypeMatchesRequestType(requestType, response)){
+    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
+    // }
+
+    return response.errorCode;
   }
 
   private castAgentResoinseContentToSDKResponseObject(responseType: SyncStageMessageType, content: any): any {
@@ -161,8 +162,7 @@ export default class SyncStage implements ISyncStage {
         return content as IMeasurements;
       }
       // ISession response
-      case SyncStageMessageType.JoinResponse: {
-      }
+      case SyncStageMessageType.JoinResponse:
       case SyncStageMessageType.SessionResponse: {
         return content as ISession;
       }
@@ -188,16 +188,15 @@ export default class SyncStage implements ISyncStage {
   ): [any, SyncStageSDKErrorCode] {
     if (response === null) {
       return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
-    } else {
-      // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-      // if(!this.responseTypeMatchesRequestType(requestType, response)){
-      //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-      // }
-
-      return [this.castAgentResoinseContentToSDKResponseObject(response.type, response.content), response.errorCode];
     }
+    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
+    // if(!this.responseTypeMatchesRequestType(requestType, response)){
+    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
+    // }
+
+    return [this.castAgentResoinseContentToSDKResponseObject(response.type, response.content), response.errorCode];
   }
-  //#endregion
+  // #endregion
 
   async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
@@ -213,11 +212,11 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  public isDesktopAgentConnected(): boolean{
+  isDesktopAgentConnected(): boolean {
     return this.ws.isConnected();
   }
 
-  public getSDKVersion(): string{
+  getSDKVersion(): string {
     return version;
   }
 
@@ -247,7 +246,13 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { sessionCode, userId, displayName, latitude, longitude });
+    const response = await this.ws.sendMessage(requestType, {
+      sessionCode,
+      userId,
+      displayName,
+      latitude,
+      longitude,
+    });
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 

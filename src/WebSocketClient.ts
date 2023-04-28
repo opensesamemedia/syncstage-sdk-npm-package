@@ -31,7 +31,10 @@ export default class {
   private lastConnectedDate: number | null = null;
   private controlledDisconnection: boolean = false;
 
-  constructor(url: string, onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void) {
+  constructor(
+    url: string,
+    onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
+  ) {
     this.url = url;
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
@@ -69,15 +72,18 @@ export default class {
       this.sendMessage(SyncStageMessageType.Ping, {});
 
       if (
-        (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
+        (this.lastPongReceivedDate !== null &&
+          Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
         (this.lastPongReceivedDate === null &&
           this.lastConnectedDate != null &&
           Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
       ) {
         console.log(
-          `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
-            this.lastPongReceivedDate
-          }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
+          `Did not receive Pong message since at least ${
+            ALLOWED_TIME_WITHOUT_PONG_MS / 1000
+          }s. Last pong date: ${this.lastPongReceivedDate}. Last connected date: ${
+            this.lastConnectedDate
+          }. Reconnecting.`,
         );
         await this.reconnect();
       }
@@ -85,10 +91,13 @@ export default class {
   }
 
   private onMessage(event: MessageEvent<any>) {
-    console.log(`Received: ${event.data}`);
     try {
       const data: IWebsocketPayload = JSON.parse(event.data.toString()) as IWebsocketPayload;
       const { msgId, errorCode, type, content, time } = data;
+
+      if (type !== SyncStageMessageType.Pong) {
+        console.log(`Received: ${event.data}`);
+      }
 
       if (this.requests.has(msgId)) {
         console.log(`Received response for msgId: ${msgId}  errorCode: ${errorCode}`);
@@ -104,7 +113,7 @@ export default class {
         this.onDelegateMessage(type, content);
       }
     } catch (error) {
-      console.log(`Could not parse websocket message ${error}`);
+      console.log(`Could not parse websocket message  ${event.data} : ${error}`);
     }
   }
 
@@ -115,8 +124,8 @@ export default class {
 
     if (!this.controlledDisconnection) {
       this.setReconnectInterval();
-    } else{
-      this.connect()
+    } else {
+      this.connect();
     }
 
     this.controlledDisconnection = false;
@@ -176,9 +185,9 @@ export default class {
           this.onError(error);
         });
         this.ws.close();
-        while( this.ws && this.ws.readyState !== WebSocket.CLOSED ) {
-          console.log("Waiting for websocket to close...")
-          await new Promise(r => setTimeout(r, 400));
+        while (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+          console.log('Waiting for websocket to close...');
+          await new Promise((r) => setTimeout(r, 400));
         }
         this.connected = false;
       }
@@ -216,13 +225,23 @@ export default class {
       content,
     };
     const strPayload = JSON.stringify(payload);
-    console.log(`Sending to WS: ${strPayload}`);
+
+    if (type !== SyncStageMessageType.Ping) {
+      console.log(`Sending to WS: ${strPayload}`);
+    }
+
     this.ws.send(strPayload);
     try {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response for ${type}.`));
+          reject(
+            new Error(
+              `Timeout: ${
+                WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000
+              }s elapsed without a response for ${type}.`,
+            ),
+          );
         }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
 
         this.requests.set(msgId, { resolve, timeout });

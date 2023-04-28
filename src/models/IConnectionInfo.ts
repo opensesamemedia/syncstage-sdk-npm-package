@@ -1,4 +1,4 @@
-import { Connection } from "./Session";
+import { Connection } from './Session';
 
 export interface IHostInfo {
   port: number;

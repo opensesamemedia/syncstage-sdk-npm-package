@@ -1,4 +1,4 @@
-import { IConnection, ISession, ISessionIdentifier } from "./ISession";
+import { IConnection, ISession, ISessionIdentifier } from './ISession';
 
 export class SessionIdentifier implements ISessionIdentifier {
   constructor(public sessionId: string, public sessionCode: string, public createdAt: string) {}
