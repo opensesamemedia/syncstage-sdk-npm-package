@@ -90,6 +90,8 @@ export default class {
     }, PING_INTERVAL_MS);
 
     if (this.onWebsocketReconnected != null) {
+      console.log('onWebsocketReconnected');
+      console.log(this.onWebsocketReconnected);
       this.onWebsocketReconnected();
     }
   }

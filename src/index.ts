@@ -35,6 +35,8 @@ export default class SyncStage implements ISyncStage {
 
     const onDesktopAgentReconnected = (): void => {
       if (this.connectivityDelegate != null) {
+        console.log('onDesktopAgentReconnected');
+        console.log(this.connectivityDelegate.desktopAgentReconnected);
         this.connectivityDelegate.desktopAgentReconnected();
       }
     };
