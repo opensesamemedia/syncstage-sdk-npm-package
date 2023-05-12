@@ -30,7 +30,7 @@ export default class {
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
   private controlledDisconnection = false;
-  public onWebsocketReconnected: () => void;
+  public onWebsocketReconnected: (() => void) | null = null;
 
   constructor(
     url: string,
@@ -89,7 +89,9 @@ export default class {
       }
     }, PING_INTERVAL_MS);
 
-    this.onWebsocketReconnected();
+    if (this.onWebsocketReconnected != null) {
+      this.onWebsocketReconnected();
+    }
   }
 
   private onMessage(event: MessageEvent<any>) {
