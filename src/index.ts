@@ -321,24 +321,6 @@ export default class SyncStage implements ISyncStage {
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
-
-  registerDesktopAgentReconnectedCallback(desktopAgentReconnected: () => void): void {
-    if (this.ws) {
-      this.ws.onWebsocketReconnected = desktopAgentReconnected;
-    }
-    if (this.connectivityDelegate) {
-      this.connectivityDelegate.desktopAgentReconnected = desktopAgentReconnected;
-    }
-  }
-
-  unregisterDesktopAgentReconnectedCallback(): void {
-    if (this.ws) {
-      this.ws.onWebsocketReconnected = null;
-    }
-    if (this.connectivityDelegate) {
-      this.connectivityDelegate.desktopAgentReconnected = (): void => {};
-    }
-  }
 }
 
 export {
