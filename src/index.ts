@@ -324,7 +324,7 @@ export default class SyncStage implements ISyncStage {
 
   registerDesktopAgentReconnectedCallback(desktopAgentReconnected: () => void): void {
     if (this.ws) {
-      this.ws.onWebsocketReconnected = onWebsocketReconnected;
+      this.ws.onWebsocketReconnected = desktopAgentReconnected;
     }
     if (this.connectivityDelegate) {
       this.connectivityDelegate.desktopAgentReconnected = desktopAgentReconnected;
