@@ -28,9 +28,18 @@ export default class SyncStage implements ISyncStage {
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
-    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, (responseType: SyncStageMessageType, content: any): void => {
+
+    const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
-    });
+    };
+
+    const onDesktopAgentReconnected = (): void => {
+      if (this.connectivityDelegate != null) {
+        this.connectivityDelegate.desktopAgentReconnected();
+      }
+    };
+
+    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, onDelegateMessage, onDesktopAgentReconnected);
     console.log('Welcome to SyncStage');
   }
 
