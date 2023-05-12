@@ -28,6 +28,4 @@ export default interface ISyncStage {
   isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]>;
   getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
-  registerDesktopAgentReconnectedCallback(onWebsocketReconnected: () => void): void;
-  unregisterDesktopAgentReconnectedCallback(): void;
 }
