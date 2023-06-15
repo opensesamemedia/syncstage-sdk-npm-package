@@ -17,9 +17,7 @@ export default class SessionInfo implements ISessionInfo {
 
   session(): ISession {
     const transmitter: IConnection | undefined = this.transmitter?.connection();
-    const receivers: Array<IConnection> = this.receivers.map((connectionInfo) =>
-      connectionInfo.connection(),
-    );
+    const receivers: Array<IConnection> = this.receivers.map((connectionInfo) => connectionInfo.connection());
     return new Session(this.sessionId, this.createdAt, this.updatedAt, transmitter, receivers);
   }
 }

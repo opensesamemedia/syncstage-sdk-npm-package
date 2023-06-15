@@ -2,12 +2,7 @@ import { IHostInfo, IConnectionInfo } from './IConnectionInfo';
 import { Connection } from './Session';
 
 export class HostInfo implements IHostInfo {
-  constructor(
-    public port: number,
-    public address: string,
-    public audioServerId: string,
-    public streamingUrl: string,
-  ) {}
+  constructor(public port: number, public address: string, public audioServerId: string, public streamingUrl: string) {}
 }
 
 export default class ConnectionInfo implements IConnectionInfo {
@@ -22,13 +17,6 @@ export default class ConnectionInfo implements IConnectionInfo {
   ) {}
 
   connection(): Connection {
-    return new Connection(
-      this.connectionId,
-      this.userId,
-      this.isMuted,
-      this.createdAt,
-      this.updatedAt,
-      this.displayName,
-    );
+    return new Connection(this.connectionId, this.userId, this.isMuted, this.createdAt, this.updatedAt, this.displayName);
   }
 }

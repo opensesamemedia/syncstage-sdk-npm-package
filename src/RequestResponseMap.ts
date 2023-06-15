@@ -3,7 +3,6 @@ import { SyncStageMessageType } from './SyncStageMessageType';
 export enum RequestResponseMap {
   Ping = SyncStageMessageType.Pong,
   ProvisionRequest = SyncStageMessageType.ProvisionResponse,
-  ZonesListRequest = SyncStageMessageType.ZonesListResponse,
   CreateSessionRequest = SyncStageMessageType.CreateSessionResponse,
   JoinRequest = SyncStageMessageType.JoinResponse,
   LeaveRequest = SyncStageMessageType.LeaveResponse,
@@ -14,4 +13,8 @@ export enum RequestResponseMap {
   IsMicrophoneMutedRequest = SyncStageMessageType.IsMicrophoneMutedResponse,
   GetReceiverMeasurementsRequest = SyncStageMessageType.GetReceiverMeasurementsResponse,
   GetTransmitterMeasurementsRequest = SyncStageMessageType.GetTransmitterMeasurementsResponse,
+  BestAvailableServerRequest = SyncStageMessageType.BestAvailableServerResponse,
+  ServerInstancesRequest = SyncStageMessageType.ServerInstancesResponse,
+  LatencyOptimizationLevelRequest = SyncStageMessageType.LatencyOptimizationLevelResponse,
+  ChangeLatencyOptimizationLevelRequest = SyncStageMessageType.ChangeLatencyOptimizationLevelResponse,
 }
