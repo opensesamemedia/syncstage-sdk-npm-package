@@ -195,6 +195,13 @@ export default class SyncStage implements ISyncStage {
         return content as ILatencyOptimizationLevel;
       }
 
+      case SyncStageMessageType.BestAvailableServerResponse: {
+        return content as IServerInstance;
+      }
+
+      case SyncStageMessageType.ServerInstancesResponse: {
+        return content as IServerInstances;
+      }
       // IMeasurements response
       case SyncStageMessageType.GetReceiverMeasurementsResponse:
       case SyncStageMessageType.GetTransmitterMeasurementsResponse: {
@@ -297,9 +304,9 @@ export default class SyncStage implements ISyncStage {
     const response = await this.ws.sendMessage(requestType, {
       sessionCode,
       userId,
-      displayName,
       zoneId,
       studioServerId,
+      displayName,
     });
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
@@ -392,6 +399,7 @@ export {
   SyncStageSDKErrorCode,
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
+  ISyncStageDiscoveryDelegate,
   IServerInstances,
   IServerInstance,
   ISessionIdentifier,
