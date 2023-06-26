@@ -56,7 +56,7 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
         if (this.connectivityDelegate !== null) {
           console.log('calling connectivityDelegate.transmitterConnectivityChanged');
-          this.connectivityDelegate.transmitterConnectivityChanged(content.identifier);
+          this.connectivityDelegate.transmitterConnectivityChanged(content.connected);
         } else {
           console.log('connectivityDelegate is not added');
         }
