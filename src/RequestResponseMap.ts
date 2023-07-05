@@ -17,4 +17,5 @@ export enum RequestResponseMap {
   ServerInstancesRequest = SyncStageMessageType.ServerInstancesResponse,
   LatencyOptimizationLevelRequest = SyncStageMessageType.LatencyOptimizationLevelResponse,
   ChangeLatencyOptimizationLevelRequest = SyncStageMessageType.ChangeLatencyOptimizationLevelResponse,
+  AssignWebsocketId = SyncStageMessageType.WebsocketAssigned,
 }
