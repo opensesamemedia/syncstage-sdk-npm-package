@@ -1,3 +1,4 @@
+import { v4 as uuidv4 } from 'uuid';
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -20,6 +21,7 @@ export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
   public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
+  private websocketId: string;
 
   private ws: WebSocketClient;
 
@@ -33,6 +35,7 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
+    this.websocketId = uuidv4();
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
@@ -46,7 +49,7 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, onDelegateMessage, onDesktopAgentReconnected);
+    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, this.websocketId, onDelegateMessage, onDesktopAgentReconnected);
     console.log('Welcome to SyncStage');
   }
 
@@ -219,6 +222,7 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.Pong:
       case SyncStageMessageType.ProvisionResponse:
       case SyncStageMessageType.ToggleMicrophoneResponse:
+      case SyncStageMessageType.WebsocketAssigned:
       case SyncStageMessageType.ChangeReceiverVolumeResponse: {
         return {};
       }

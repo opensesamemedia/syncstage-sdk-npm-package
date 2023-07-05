@@ -30,14 +30,17 @@ export default class {
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
   private controlledDisconnection = false;
+  private websocketId: string;
   public onWebsocketReconnected: (() => void) | null = null;
 
   constructor(
     url: string,
+    websocketId: string,
     onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
     onWebsocketReconnected: () => void,
   ) {
     this.url = url;
+    this.websocketId = websocketId;
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
     this.requests = new Map();
@@ -70,6 +73,8 @@ export default class {
     this.connected = true;
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
+
+    this.sendMessage(SyncStageMessageType.WebsocketAssigned, { websocketId: this.websocketId });
 
     this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
