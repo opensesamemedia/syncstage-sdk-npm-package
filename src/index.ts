@@ -21,7 +21,6 @@ export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
   public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
-  private websocketId: string;
 
   private ws: WebSocketClient;
 
@@ -35,7 +34,6 @@ export default class SyncStage implements ISyncStage {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
-    this.websocketId = uuidv4();
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
@@ -49,7 +47,7 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, this.websocketId, onDelegateMessage, onDesktopAgentReconnected);
+    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, onDelegateMessage, onDesktopAgentReconnected);
     console.log('Welcome to SyncStage');
   }
 

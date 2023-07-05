@@ -35,12 +35,11 @@ export default class {
 
   constructor(
     url: string,
-    websocketId: string,
     onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
     onWebsocketReconnected: () => void,
   ) {
     this.url = url;
-    this.websocketId = websocketId;
+    this.websocketId = uuidv4();
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
     this.requests = new Map();
