@@ -251,8 +251,6 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
-    await this.ws.reconnect();
-
     const response = await this.ws.sendMessage(requestType, {
       applicationSecretId,
       applicationSecretKey,
