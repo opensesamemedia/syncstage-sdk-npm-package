@@ -43,7 +43,7 @@ export default class {
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
     this.requests = new Map();
-    this.connect();
+    this.registerListenersOnWebsocket();
     this.onWebsocketReconnected = onWebsocketReconnected;
 
     // Attach the event listener for tab/window close
@@ -86,7 +86,9 @@ export default class {
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
-    this.sendMessage(SyncStageMessageType.AssignWebsocketId, { websocketId: this.websocketId }, 3);
+    setTimeout(() => {
+      this.sendMessage(SyncStageMessageType.AssignWebsocketId, { websocketId: this.websocketId }, 3, 5000);
+    }, 500);
 
     this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
@@ -147,7 +149,7 @@ export default class {
     if (!this.controlledDisconnection) {
       this.setReconnectInterval();
     } else {
-      this.connect();
+      this.registerListenersOnWebsocket();
     }
 
     this.controlledDisconnection = false;
@@ -162,7 +164,7 @@ export default class {
     this.setReconnectInterval();
   }
 
-  private connect(): void {
+  private registerListenersOnWebsocket(): void {
     console.log(`Connecting to the websocket server: ${this.url}`);
     this.ws.addEventListener('open', () => {
       this.onOpen();
@@ -181,6 +183,24 @@ export default class {
     });
   }
 
+  private removeWebsocketListeners() {
+    this.ws.removeEventListener('open', () => {
+      this.onOpen();
+    });
+
+    this.ws.removeEventListener('message', (event) => {
+      this.onMessage(event);
+    });
+
+    this.ws.removeEventListener('close', () => {
+      this.onClose();
+    });
+
+    this.ws.removeEventListener('error', (error) => {
+      this.onError(error);
+    });
+  }
+
   public isConnected(): boolean {
     return this.connected;
   }
@@ -191,21 +211,7 @@ export default class {
     try {
       if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
         this.controlledDisconnection = true;
-        this.ws.removeEventListener('open', () => {
-          this.onOpen();
-        });
-
-        this.ws.removeEventListener('message', (event) => {
-          this.onMessage(event);
-        });
-
-        this.ws.removeEventListener('close', () => {
-          this.onClose();
-        });
-
-        this.ws.removeEventListener('error', (error) => {
-          this.onError(error);
-        });
+        this.removeWebsocketListeners();
         this.closeWebSocket();
         while (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
           console.log('Waiting for websocket to close...');
@@ -215,7 +221,7 @@ export default class {
       }
 
       this.ws = new WebSocket(this.url);
-      this.connect();
+      this.registerListenersOnWebsocket();
       while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
         await new Promise((r) => setTimeout(r, 50));
       }
@@ -238,7 +244,12 @@ export default class {
     }
   }
 
-  async sendMessage(type: SyncStageMessageType, content: any, retries = 0): Promise<IWebsocketPayload | null> {
+  async sendMessage(
+    type: SyncStageMessageType,
+    content: any,
+    retries = 0,
+    responseTimeout = WAIT_FOR_RESPONSE_TIMEOUT_MS,
+  ): Promise<IWebsocketPayload | null> {
     await this.waitForTheConnection();
     if (!this.connected) {
       console.log(`Cannot send ${type} message to ws, no connection.`);
@@ -263,15 +274,15 @@ export default class {
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);
-          reject(new Error(`Timeout: ${WAIT_FOR_RESPONSE_TIMEOUT_MS / 1000}s elapsed without a response for ${type}.`));
-        }, WAIT_FOR_RESPONSE_TIMEOUT_MS);
+          reject(new Error(`Timeout: ${responseTimeout / 1000}s elapsed without a response for ${type}.`));
+        }, responseTimeout);
 
         this.requests.set(msgId, { resolve, timeout });
       });
 
       return desktopAgentResponse;
     } catch (error) {
-      console.log(`Could not send message to the Desktop Agent. ${error}`);
+      console.log(`Could not send message to the Desktop Agent, or have not received a response. Error: ${error}`);
       if (retries) {
         console.log(`Retries left: ${retries} for ${type}`);
         return this.sendMessage(type, content, retries - 1);
