@@ -48,15 +48,15 @@ export default class {
 
     // Attach the event listener for tab/window close
     window.addEventListener('beforeunload', (event) => {
-      this.closeWebSocket();
+      this.closeWebSocket(3000);
       event.preventDefault();
       event.returnValue = ''; // Chrome requires this to work correctly
     });
   }
 
-  private closeWebSocket() {
+  private closeWebSocket(code?: number) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.close();
+      this.ws.close(code);
     }
   }
 
