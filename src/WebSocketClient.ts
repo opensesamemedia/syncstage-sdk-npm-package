@@ -45,6 +45,19 @@ export default class {
     this.requests = new Map();
     this.connect();
     this.onWebsocketReconnected = onWebsocketReconnected;
+
+    // Attach the event listener for tab/window close
+    window.addEventListener('beforeunload', (event) => {
+      this.closeWebSocket();
+      event.preventDefault();
+      event.returnValue = ''; // Chrome requires this to work correctly
+    });
+  }
+
+  private closeWebSocket() {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.close();
+    }
   }
 
   private setReconnectInterval() {
@@ -73,7 +86,7 @@ export default class {
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
-    this.sendMessage(SyncStageMessageType.WebsocketAssigned, { websocketId: this.websocketId });
+    this.sendMessage(SyncStageMessageType.AssignWebsocketId, { websocketId: this.websocketId }, 3);
 
     this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
@@ -143,7 +156,7 @@ export default class {
   private onError(error: Event) {
     console.error('WebSocket error:', error);
     clearInterval(this.pingInterval);
-    this.ws.close();
+    this.closeWebSocket();
     this.connected = false;
     this.controlledDisconnection = false;
     this.setReconnectInterval();
@@ -193,7 +206,7 @@ export default class {
         this.ws.removeEventListener('error', (error) => {
           this.onError(error);
         });
-        this.ws.close();
+        this.closeWebSocket();
         while (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
           console.log('Waiting for websocket to close...');
           await new Promise((r) => setTimeout(r, 400));
@@ -225,7 +238,7 @@ export default class {
     }
   }
 
-  async sendMessage(type: SyncStageMessageType, content: any): Promise<IWebsocketPayload | null> {
+  async sendMessage(type: SyncStageMessageType, content: any, retries = 0): Promise<IWebsocketPayload | null> {
     await this.waitForTheConnection();
     if (!this.connected) {
       console.log(`Cannot send ${type} message to ws, no connection.`);
@@ -259,7 +272,12 @@ export default class {
       return desktopAgentResponse;
     } catch (error) {
       console.log(`Could not send message to the Desktop Agent. ${error}`);
-      return null;
+      if (retries) {
+        console.log(`Retries left: ${retries} for ${type}`);
+        return this.sendMessage(type, content, retries - 1);
+      } else {
+        return null;
+      }
     }
   }
 }
