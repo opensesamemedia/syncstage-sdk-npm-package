@@ -230,10 +230,8 @@ export default class SyncStage implements ISyncStage {
         return content as ISession;
       }
 
-      case SyncStageMessageType.Pong: {
-      }
-
       // Responses with empty content
+      case SyncStageMessageType.Pong:
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.ChangeLatencyOptimizationLevelResponse:
       case SyncStageMessageType.ProvisionResponse:
@@ -418,6 +416,7 @@ export {
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
   ISyncStageDiscoveryDelegate,
+  ISyncStageDesktopAgentDelegate,
   IServerInstances,
   IServerInstance,
   ISessionIdentifier,
