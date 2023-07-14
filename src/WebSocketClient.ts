@@ -1,8 +1,10 @@
 import { v4 as uuidv4 } from 'uuid';
+
 import { SyncStageMessageType } from './SyncStageMessageType';
+import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
-const RECONNECT_INTERVAL_MS = 4000;
+const RECONNECT_INTERVAL_MS = 5000;
 const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
 const PING_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
@@ -24,6 +26,7 @@ export default class {
   private ws: WebSocket;
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
+  private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
   private connected = false;
   private pingInterval: any;
   private reconnectInterval: any;
@@ -31,12 +34,14 @@ export default class {
   private lastConnectedDate: number | null = null;
   private controlledDisconnection = false;
   private websocketId: string;
-  public onWebsocketReconnected: (() => void) | null = null;
+  private onWebsocketReconnected: () => void;
+  private reconnecting = false;
 
   constructor(
     url: string,
     onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
     onWebsocketReconnected: () => void,
+    onDesktopAgentAquiredStatus: (aquired: boolean) => void,
   ) {
     this.url = url;
     this.websocketId = uuidv4();
@@ -45,6 +50,7 @@ export default class {
     this.requests = new Map();
     this.registerListenersOnWebsocket();
     this.onWebsocketReconnected = onWebsocketReconnected;
+    this.onDesktopAgentAquiredStatus = onDesktopAgentAquiredStatus;
 
     // Attach the event listener for tab/window close
     window.addEventListener('beforeunload', (event) => {
@@ -52,6 +58,10 @@ export default class {
       event.preventDefault();
       event.returnValue = ''; // Chrome requires this to work correctly
     });
+  }
+
+  public updateOnWebsocketReconnected(onWebsocketReconnected: () => void) {
+    this.onWebsocketReconnected = onWebsocketReconnected;
   }
 
   private closeWebSocket(code?: number) {
@@ -83,6 +93,7 @@ export default class {
     this.controlledDisconnection = false;
 
     this.connected = true;
+    this.reconnecting = false;
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
@@ -108,11 +119,8 @@ export default class {
       }
     }, PING_INTERVAL_MS);
 
-    if (this.onWebsocketReconnected != null) {
-      console.log('onWebsocketReconnected');
-      console.log(this.onWebsocketReconnected);
-      this.onWebsocketReconnected();
-    }
+    console.log('onWebsocketReconnected');
+    this.onWebsocketReconnected();
   }
 
   private onMessage(event: MessageEvent<any>) {
@@ -131,6 +139,7 @@ export default class {
 
         if (type === SyncStageMessageType.Pong) {
           this.lastPongReceivedDate = new Date(time).getTime();
+          this.onDesktopAgentAquiredStatus(errorCode === SyncStageSDKErrorCode.SYNCSTAGE_OPENED_IN_ANOTHER_TAB);
         }
       } else {
         console.log('Received message unrelated to any msgId, handling as delegate.');
@@ -144,6 +153,7 @@ export default class {
   private onClose() {
     console.log('Disconnected from WebSocket server.');
     this.connected = false;
+    this.reconnecting = false;
     clearInterval(this.pingInterval);
 
     if (!this.controlledDisconnection) {
@@ -156,10 +166,11 @@ export default class {
   }
 
   private onError(error: Event) {
-    console.error('WebSocket error:', error);
+    console.log('WebSocket error:', error);
     clearInterval(this.pingInterval);
     this.closeWebSocket();
     this.connected = false;
+    this.reconnecting = false;
     this.controlledDisconnection = false;
     this.setReconnectInterval();
   }
@@ -206,17 +217,30 @@ export default class {
   }
 
   async reconnect() {
-    console.log('Reconnecting to the websocket server...');
+    if (this.reconnecting) {
+      console.log('Reconnection in progress...');
+      return;
+    }
 
+    console.log('Reconnecting to the websocket server...');
+    this.reconnecting = true;
     try {
       if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
         this.controlledDisconnection = true;
         this.removeWebsocketListeners();
         this.closeWebSocket();
+
+        const timeout = 4000; // Timeout in milliseconds
+        const startTime = Date.now();
+        console.log('Waiting for websocket to close...');
         while (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
-          console.log('Waiting for websocket to close...');
-          await new Promise((r) => setTimeout(r, 400));
+          if (Date.now() - startTime >= timeout) {
+            console.log('Timeout waiting for WebSocket to close.');
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 500));
         }
+        console.log('Websocket disconnected.');
         this.connected = false;
       }
 
@@ -230,7 +254,8 @@ export default class {
       }
     } catch (error) {
       console.log(`Could not reconnect to the Websocket. ${error}`);
-      return null;
+    } finally {
+      this.reconnecting = false;
     }
   }
 
@@ -269,8 +294,8 @@ export default class {
       console.log(`Sending to WS: ${strPayload}`);
     }
 
-    this.ws.send(strPayload);
     try {
+      this.ws.send(strPayload);
       const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
         const timeout = window.setTimeout(() => {
           this.requests.delete(msgId);

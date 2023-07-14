@@ -1,4 +1,3 @@
-import { v4 as uuidv4 } from 'uuid';
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -13,6 +12,7 @@ import { version } from './version';
 import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import { IZoneLatency } from './models/IZoneLatency';
+import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
 const BASE_WS_ADDRESS = 'ws://localhost';
 const MIN_DRIVER_VERSION = '1.0.1';
@@ -21,6 +21,9 @@ export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
   public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
+  public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
+  private onDesktopAgentReconnected: () => void = () => {};
 
   private ws: WebSocketClient;
 
@@ -28,27 +31,40 @@ export default class SyncStage implements ISyncStage {
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
     discoveryDelegate: ISyncStageDiscoveryDelegate | null,
+    desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
     desktopAgentPort = 18080,
     baseWsAddress: string = BASE_WS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
+    this.desktopAgentDelegate = desktopAgentDelegate;
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
     };
 
-    const onDesktopAgentReconnected = (): void => {
-      if (this.connectivityDelegate != null) {
-        console.log('onDesktopAgentReconnected');
-        console.log(this.connectivityDelegate.desktopAgentReconnected);
-        this.connectivityDelegate.desktopAgentReconnected();
-      }
-    };
-
-    this.ws = new WebSocketClient(`${baseWsAddress}:${desktopAgentPort}`, onDelegateMessage, onDesktopAgentReconnected);
+    this.ws = new WebSocketClient(
+      `${baseWsAddress}:${desktopAgentPort}`,
+      onDelegateMessage,
+      this.onDesktopAgentReconnected,
+      this.onDesktopAgentAquiredStatus,
+    );
     console.log('Welcome to SyncStage');
+  }
+
+  private onDesktopAgentAquiredStatus(aquired: boolean) {
+    if (this.desktopAgentDelegate) {
+      if (aquired) {
+        this.desktopAgentDelegate.desktopAgentAquired();
+      } else {
+        this.desktopAgentDelegate.desktopAgentReleased();
+      }
+    }
+  }
+  public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
+    this.onDesktopAgentReconnected = onDesktopAgentReconnected;
+    this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
   }
 
   // #region Private methods
@@ -214,10 +230,12 @@ export default class SyncStage implements ISyncStage {
         return content as ISession;
       }
 
+      case SyncStageMessageType.Pong: {
+      }
+
       // Responses with empty content
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.ChangeLatencyOptimizationLevelResponse:
-      case SyncStageMessageType.Pong:
       case SyncStageMessageType.ProvisionResponse:
       case SyncStageMessageType.ToggleMicrophoneResponse:
       case SyncStageMessageType.WebsocketAssigned:
