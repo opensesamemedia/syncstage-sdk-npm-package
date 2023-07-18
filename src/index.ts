@@ -44,24 +44,23 @@ export default class SyncStage implements ISyncStage {
       this.onDelegateMessage(responseType, content);
     };
 
+    const onDesktopAgentAquiredStatus = (aquired: boolean) => {
+      if (aquired) {
+        this.desktopAgentDelegate?.desktopAgentAquired();
+      } else {
+        this.desktopAgentDelegate?.desktopAgentReleased();
+      }
+    };
+
     this.ws = new WebSocketClient(
       `${baseWsAddress}:${desktopAgentPort}`,
       onDelegateMessage,
       this.onDesktopAgentReconnected,
-      this.onDesktopAgentAquiredStatus,
+      onDesktopAgentAquiredStatus,
     );
     console.log('Welcome to SyncStage');
   }
 
-  private onDesktopAgentAquiredStatus(aquired: boolean) {
-    if (this.desktopAgentDelegate) {
-      if (aquired) {
-        this.desktopAgentDelegate.desktopAgentAquired();
-      } else {
-        this.desktopAgentDelegate.desktopAgentReleased();
-      }
-    }
-  }
   public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
     this.onDesktopAgentReconnected = onDesktopAgentReconnected;
     this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
