@@ -42,4 +42,10 @@ export enum SyncStageMessageType {
   DiscoveryLatencyResult = 'DiscoveryLatencyResult',
   AssignWebsocketId = 'AssignWebsocketId',
   WebsocketAssigned = 'WebsocketAssigned',
+  StartRecordingRequest = 'StartRecordingRequest',
+  StartRecordingResponse = 'StartRecordingResponse',
+  RecordingStarted = 'RecordingStarted',
+  StopRecordingRequest = 'StopRecordingRequest',
+  StopRecordingResponse = 'StopRecordingResponse',
+  RecordingStopped = 'RecordingStopped',
 }
