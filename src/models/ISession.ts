@@ -8,6 +8,7 @@ export interface ISession {
   sessionId: string;
   createdAt: string;
   updatedAt: string;
+  recordingStatus: string;
   transmitter?: IConnection | null;
   receivers: Array<IConnection>;
 }

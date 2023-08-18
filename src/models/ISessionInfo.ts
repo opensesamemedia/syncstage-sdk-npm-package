@@ -9,4 +9,5 @@ export interface ISessionInfo {
   receivers: Array<IConnectionInfo>;
   createdAt: string;
   updatedAt: string;
+  recordingStatus: string;
 }
