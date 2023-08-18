@@ -11,7 +11,7 @@ export class Session implements ISession {
     public updatedAt: string,
     public transmitter: IConnection | null = null,
     public receivers: Array<IConnection> = [],
-    public recordingStatus: string,
+    public isRecording: boolean,
   ) {}
 }
 
