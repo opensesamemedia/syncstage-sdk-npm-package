@@ -18,6 +18,6 @@ export enum RequestResponseMap {
   LatencyOptimizationLevelRequest = SyncStageMessageType.LatencyOptimizationLevelResponse,
   ChangeLatencyOptimizationLevelRequest = SyncStageMessageType.ChangeLatencyOptimizationLevelResponse,
   AssignWebsocketId = SyncStageMessageType.WebsocketAssigned,
-  StartRecordingRequest = SyncStageMessageType.StartRecordingRequest,
+  StartRecordingRequest = SyncStageMessageType.StartRecordingResponse,
   StopRecordingRequest = SyncStageMessageType.StopRecordingResponse,
 }
