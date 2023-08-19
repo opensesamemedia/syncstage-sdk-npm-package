@@ -8,7 +8,6 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
 import { RequestResponseMap } from './RequestResponseMap';
-
 import { version } from './version';
 import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
@@ -25,6 +24,7 @@ export default class SyncStage implements ISyncStage {
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onDesktopAgentReconnected: () => void = () => {};
+
   private ws: WebSocketClient;
 
   constructor(
@@ -308,9 +308,8 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.BestAvailableServerRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, {});
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_ZONES_LIST, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]> {
@@ -353,72 +352,64 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.LeaveRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, {});
-    // return this.parseResponseOnlyErrorCode(requestType, response);
-    return SyncStageSDKErrorCode.OK;
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.SessionRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, {});
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_SESSION, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ChangeReceiverVolumeRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, { identifier, volume });
-    // return this.parseResponseOnlyErrorCode(requestType, response);
-    return SyncStageSDKErrorCode.OK;
+    const response = await this.ws.sendMessage(requestType, { identifier, volume });
+    return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
   async getReceiverVolume(identifier: string): Promise<[number | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetReceiverVolumeRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, { identifier });
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_RECEIVER_VOLUME, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, { identifier });
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ToggleMicrophoneRequest;
     console.log(requestType);
 
-    // const response = await this.ws.sendMessage(requestType, { mute });
-    // return this.parseResponseOnlyErrorCode(requestType, response);
-    return SyncStageSDKErrorCode.OK;
+    const response = await this.ws.sendMessage(requestType, { mute });
+    return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
   async isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.IsMicrophoneMutedRequest;
     console.log(`session ${requestType}`);
 
-    // const response = await this.ws.sendMessage(requestType, {});
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_IS_MICROPHONE_MUTED, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetReceiverMeasurementsRequest;
     console.log(`session ${requestType}`);
 
-    // const response = await this.ws.sendMessage(requestType, { identifier });
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_RECEIVER_MEASUREMENTS, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, { identifier });
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
     const requestType = SyncStageMessageType.GetTransmitterMeasurementsRequest;
     console.log(`session ${requestType}`);
 
-    // const response = await this.ws.sendMessage(requestType, {});
-    // return this.parseResponseErrorCodeAndContent(requestType, response);
-    return [MOCK_TRANSMITTER_MEASUREMENTS, SyncStageSDKErrorCode.OK];
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]> {
