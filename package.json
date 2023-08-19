@@ -1,6 +1,6 @@
 {
   "name": "@opensesamemedia/syncstage",
-  "version": "0.0.2-rc.6",
+  "version": "0.2.0",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
@@ -54,6 +54,7 @@
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "async-mutex": "^0.4.0",
     "uuid": "^9.0.0"
   }
 }

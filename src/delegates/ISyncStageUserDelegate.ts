@@ -5,5 +5,7 @@ export default interface ISyncStageUserDelegate {
   userLeft(identifier: string): void;
   userMuted(identifier: string): void;
   userUnmuted(identifier: string): void;
+  sessionRecordingStarted(): void;
+  sessionRecordingStopped(): void;
   sessionOut(): void;
 }

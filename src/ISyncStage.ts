@@ -3,22 +3,26 @@ import ISyncStageConnectivityDelegate from './delegates/ISyncStageConnectivityDe
 import ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
-import type { IZonesList } from './models/IZonesList';
+import type { IServerInstance, IServerInstances } from './models/IServerInstances';
+import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
+import { IZoneLatency } from './models/IZoneLatency';
 
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
+  discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode>;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
-  zonesList(): Promise<[IZonesList | null, SyncStageSDKErrorCode]>;
-  createSession(zoneId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
+  getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
+  getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;
+  createSession(zoneId: string, studioServerId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
   join(
     sessionCode: string,
     userId: string,
+    zoneId: string,
+    studioServerId: string,
     displayName?: string | null,
-    latitude?: number | null,
-    longitude?: number | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]>;
   leave(): Promise<SyncStageSDKErrorCode>;
   session(): Promise<[ISession | null, SyncStageSDKErrorCode]>;
@@ -28,6 +32,5 @@ export default interface ISyncStage {
   isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]>;
   getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
-  registerDesktopAgentReconnectedCallback(onWebsocketReconnected: () => void): void;
-  unregisterDesktopAgentReconnectedCallback(): void;
+  getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]>;
 }

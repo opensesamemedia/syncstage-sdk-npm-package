@@ -10,6 +10,7 @@ export interface ISession {
   updatedAt: string;
   transmitter?: IConnection | null;
   receivers: Array<IConnection>;
+  isRecording: boolean;
 }
 
 export interface IConnection {
