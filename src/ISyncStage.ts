@@ -11,7 +11,8 @@ export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
   discoveryDelegate: ISyncStageDiscoveryDelegate | null;
-  init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode>;
+  init(jwt: string): Promise<SyncStageSDKErrorCode>;
+  updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;

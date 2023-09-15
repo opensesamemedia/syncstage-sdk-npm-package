@@ -22,16 +22,19 @@ export default class SyncStage implements ISyncStage {
   public userDelegate: ISyncStageUserDelegate | null;
   public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
+  public onTokenExpired: (() => Promise<string>) | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onDesktopAgentReconnected: () => void = () => {};
 
   private ws: WebSocketClient;
+  private jwt: string | null = null;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
     discoveryDelegate: ISyncStageDiscoveryDelegate | null,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
+    onTokenExpired: (() => Promise<string>) | null,
     desktopAgentPort = 18080,
     baseWsAddress: string = BASE_WS_ADDRESS,
   ) {
@@ -39,6 +42,7 @@ export default class SyncStage implements ISyncStage {
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
     this.desktopAgentDelegate = desktopAgentDelegate;
+    this.onTokenExpired = onTokenExpired;
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
@@ -270,25 +274,45 @@ export default class SyncStage implements ISyncStage {
     if (response === null) {
       return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
     }
-    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-    // if(!this.responseTypeMatchesRequestType(requestType, response)){
-    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-    // }
+    if (!this.responseTypeMatchesRequestType(requestType, response)) {
+      return [null, SyncStageSDKErrorCode.UNKNOWN_ERROR];
+    }
 
     return [this.castAgentResponseContentToSDKResponseObject(response.type, response.content), response.errorCode];
   }
+  private async isJwtExpired() {
+    if (this.jwt != null) {
+      // check if token will be valid for at least the next 10 seconds
+      const expired = Date.now() + 10 * 1000 >= JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+      if (expired && this.onTokenExpired != null) {
+        const newToken = await this.onTokenExpired();
+        if (newToken != null && newToken.length > 5) {
+          this.jwt = newToken;
+          console.log('New jwt updated.');
+          return false;
+        }
+      } else if (expired) {
+        console.log('Jwt expired.');
+      }
+      return expired;
+    } else {
+      return true;
+    }
+  }
   // #endregion
 
-  async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
+  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {
-      applicationSecretId,
-      applicationSecretKey,
-      minDriverVersion: MIN_DRIVER_VERSION,
+      token: jwt,
     });
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
+    return this.init(jwt);
   }
 
   public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
@@ -305,6 +329,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.BestAvailableServerRequest;
     console.log(requestType);
 
@@ -313,6 +341,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.ServerInstancesRequest;
     console.log(requestType);
 
@@ -321,6 +353,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async createSession(zoneId: string, studioServerId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.CreateSessionRequest;
     console.log(`createSession ${requestType}`);
 
@@ -335,6 +371,10 @@ export default class SyncStage implements ISyncStage {
     studioServerId: string,
     displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
@@ -349,6 +389,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+
     const requestType = SyncStageMessageType.LeaveRequest;
     console.log(requestType);
 
@@ -357,6 +401,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.SessionRequest;
     console.log(requestType);
 
@@ -365,6 +413,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+
     const requestType = SyncStageMessageType.ChangeReceiverVolumeRequest;
     console.log(requestType);
 
@@ -373,6 +425,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getReceiverVolume(identifier: string): Promise<[number | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetReceiverVolumeRequest;
     console.log(requestType);
 
@@ -381,6 +436,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.ToggleMicrophoneRequest;
     console.log(requestType);
 
@@ -389,6 +447,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.IsMicrophoneMutedRequest;
     console.log(`session ${requestType}`);
 
@@ -397,6 +458,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetReceiverMeasurementsRequest;
     console.log(`session ${requestType}`);
 
@@ -405,6 +469,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetTransmitterMeasurementsRequest;
     console.log(`session ${requestType}`);
 
@@ -413,6 +480,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.LatencyOptimizationLevelRequest;
 
     console.log(`session ${requestType}`);
@@ -422,6 +492,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async changeLatencyOptimizationLevel(level: number): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.ChangeLatencyOptimizationLevelRequest;
 
     console.log(`session ${requestType}`);
@@ -431,6 +504,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async startRecording(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.StartRecordingRequest;
 
     console.log(`session ${requestType}`);
@@ -440,6 +516,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async stopRecording(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.StopRecordingRequest;
 
     console.log(`session ${requestType}`);
