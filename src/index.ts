@@ -283,11 +283,15 @@ export default class SyncStage implements ISyncStage {
   private async isJwtExpired() {
     if (this.jwt != null) {
       // check if token will be valid for at least the next 10 seconds
-      const expired = Date.now() + 10 * 1000 >= JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+      const dateIn10sec = Date.now() + 10 * 1000;
+      const jwtExp = JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+
+      const expired = dateIn10sec >= jwtExp;
+
       if (expired && this.onTokenExpired != null) {
         const newToken = await this.onTokenExpired();
         if (newToken != null && newToken.length > 5) {
-          this.jwt = newToken;
+          await this.init(newToken);
           console.log('New jwt updated.');
           return false;
         }
@@ -296,6 +300,7 @@ export default class SyncStage implements ISyncStage {
       }
       return expired;
     } else {
+      console.log('No JWT provided, treating as expired.');
       return true;
     }
   }
@@ -304,7 +309,7 @@ export default class SyncStage implements ISyncStage {
   async init(jwt: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
-
+    this.jwt = jwt;
     const response = await this.ws.sendMessage(requestType, {
       token: jwt,
     });
