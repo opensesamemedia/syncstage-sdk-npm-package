@@ -20,4 +20,5 @@ export enum RequestResponseMap {
   AssignWebsocketId = SyncStageMessageType.WebsocketAssigned,
   StartRecordingRequest = SyncStageMessageType.StartRecordingResponse,
   StopRecordingRequest = SyncStageMessageType.StopRecordingResponse,
+  UpdateTokenRequest = SyncStageMessageType.UpdateTokenResponse,
 }

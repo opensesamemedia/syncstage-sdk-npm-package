@@ -48,4 +48,6 @@ export enum SyncStageMessageType {
   StopRecordingRequest = 'StopRecordingRequest',
   StopRecordingResponse = 'StopRecordingResponse',
   RecordingStopped = 'RecordingStopped',
+  UpdateTokenRequest = 'UpdateTokenRequest',
+  UpdateTokenResponse = 'UpdateTokenResponse',
 }

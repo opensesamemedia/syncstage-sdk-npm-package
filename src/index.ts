@@ -291,7 +291,7 @@ export default class SyncStage implements ISyncStage {
       if (expired && this.onTokenExpired != null) {
         const newToken = await this.onTokenExpired();
         if (newToken != null && newToken.length > 5) {
-          await this.init(newToken);
+          await this.updateToken(newToken);
           console.log('New jwt updated.');
           return false;
         }
@@ -317,7 +317,13 @@ export default class SyncStage implements ISyncStage {
   }
 
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
-    return this.init(jwt);
+    const requestType = SyncStageMessageType.UpdateTokenRequest;
+    console.log(requestType);
+    this.jwt = jwt;
+    const response = await this.ws.sendMessage(requestType, {
+      token: jwt,
+    });
+    return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
   public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
