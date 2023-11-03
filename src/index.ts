@@ -14,7 +14,7 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import { IZoneLatency } from './models/IZoneLatency';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
-const BASE_WS_ADDRESS = 'ws://localhost';
+const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
@@ -28,6 +28,9 @@ export default class SyncStage implements ISyncStage {
 
   private ws: WebSocketClient;
   private jwt: string | null = null;
+  private baseWssAddress: string;
+  private wsAddressForDesktopAgent: string;
+  private wsAddressForSDK: string;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -35,14 +38,15 @@ export default class SyncStage implements ISyncStage {
     discoveryDelegate: ISyncStageDiscoveryDelegate | null,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
     onTokenExpired: (() => Promise<string>) | null,
-    desktopAgentPort = 18080,
-    baseWsAddress: string = BASE_WS_ADDRESS,
+    baseWsAddress: string = BASE_WSS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
     this.desktopAgentDelegate = desktopAgentDelegate;
     this.onTokenExpired = onTokenExpired;
+    this.baseWssAddress = baseWsAddress;
+    [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = this.generateWebSocketURLS();
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
@@ -56,12 +60,7 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(
-      `${baseWsAddress}:${desktopAgentPort}`,
-      onDelegateMessage,
-      this.onDesktopAgentReconnected,
-      onDesktopAgentAquiredStatus,
-    );
+    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onDesktopAgentReconnected, onDesktopAgentAquiredStatus);
     console.log('Welcome to SyncStage');
   }
 
@@ -331,11 +330,11 @@ export default class SyncStage implements ISyncStage {
     this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
   }
 
-  isDesktopAgentConnected(): boolean {
-    return this.ws.isConnected();
+  public isDesktopAgentConnected(): boolean {
+    return this.ws.desktopAgentConnected();
   }
 
-  getSDKVersion(): string {
+  public getSDKVersion(): string {
     return version;
   }
 
@@ -536,6 +535,32 @@ export default class SyncStage implements ISyncStage {
 
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  public getDesktopAgentProtocolHandler(): string {
+    const encodedWssAddress = encodeURI(this.wsAddressForDesktopAgent);
+    return `syncstageagent://${encodedWssAddress}`;
+  }
+
+  private generateWebSocketURLS(): string[] {
+    const pairingCode = this.generateRandomString(256); // Randomly generated 256-character string
+
+    return [
+      `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
+      `${this.baseWssAddress}?peerType=BROWSER_SDK&pairingCode=${pairingCode}`,
+    ];
+  }
+
+  private generateRandomString(length: number): string {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      result += characters.charAt(randomIndex);
+    }
+
+    return result;
   }
 }
 

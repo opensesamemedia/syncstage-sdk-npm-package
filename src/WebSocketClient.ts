@@ -28,6 +28,7 @@ export default class {
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
   private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
   private connected = false;
+  private isDesktopAgentConnected = false;
   private pingInterval: any;
   private reconnectInterval: any;
   private lastPongReceivedDate: number | null = null;
@@ -115,6 +116,7 @@ export default class {
             this.lastPongReceivedDate
           }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
         );
+        this.isDesktopAgentConnected = false;
         await this.reconnect();
       }
     }, PING_INTERVAL_MS);
@@ -138,6 +140,11 @@ export default class {
         this.requests.delete(msgId);
 
         if (type === SyncStageMessageType.Pong) {
+          if (!this.isDesktopAgentConnected) {
+            this.onWebsocketReconnected();
+          }
+
+          this.isDesktopAgentConnected = true;
           this.lastPongReceivedDate = new Date(time).getTime();
           this.onDesktopAgentAquiredStatus(errorCode === SyncStageSDKErrorCode.SYNCSTAGE_OPENED_IN_ANOTHER_TAB);
         }
@@ -214,6 +221,10 @@ export default class {
 
   public isConnected(): boolean {
     return this.connected;
+  }
+
+  public desktopAgentConnected(): boolean {
+    return this.isDesktopAgentConnected;
   }
 
   async reconnect() {
