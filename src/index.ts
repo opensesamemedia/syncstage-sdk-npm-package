@@ -538,12 +538,13 @@ export default class SyncStage implements ISyncStage {
   }
 
   public getDesktopAgentProtocolHandler(): string {
-    const encodedWssAddress = encodeURI(this.wsAddressForDesktopAgent);
+    const encodedWssAddress = encodeURIComponent(this.wsAddressForDesktopAgent);
     return `syncstageagent://${encodedWssAddress}`;
   }
 
   private generateWebSocketURLS(): string[] {
-    const pairingCode = this.generateRandomString(256); // Randomly generated 256-character string
+    const pairingCode = localStorage.getItem('pairingCode') || this.generateRandomString(256);
+    localStorage.setItem('pairingCode', pairingCode);
 
     return [
       `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,

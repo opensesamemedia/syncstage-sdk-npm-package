@@ -5,7 +5,7 @@ import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
 const RECONNECT_INTERVAL_MS = 5000;
-const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 60000;
 const PING_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
 export interface IWebsocketPayload {
@@ -98,21 +98,12 @@ export default class {
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
-    setTimeout(() => {
-      this.sendMessage(SyncStageMessageType.AssignWebsocketId, { websocketId: this.websocketId }, 3, 5000);
-    }, 500);
-
     this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
 
-      if (
-        (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
-        (this.lastPongReceivedDate === null &&
-          this.lastConnectedDate != null &&
-          Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
-      ) {
+      if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
         console.log(
-          `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
+          `Did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
             this.lastPongReceivedDate
           }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
         );
@@ -140,12 +131,8 @@ export default class {
         this.requests.delete(msgId);
 
         if (type === SyncStageMessageType.Pong) {
-          if (!this.isDesktopAgentConnected) {
-            this.onWebsocketReconnected();
-          }
-
           this.isDesktopAgentConnected = true;
-          this.lastPongReceivedDate = new Date(time).getTime();
+          this.lastPongReceivedDate = Date.now();
           this.onDesktopAgentAquiredStatus(errorCode === SyncStageSDKErrorCode.SYNCSTAGE_OPENED_IN_ANOTHER_TAB);
         }
       } else {
@@ -256,6 +243,18 @@ export default class {
       }
 
       this.ws = new WebSocket(this.url);
+      this.ws.onerror = function (event) {
+        // The server's response is available in event.message
+        console.log(event);
+        const errorMessage = event.message;
+
+        // Parse the error message to extract the context object
+        const context = JSON.parse(errorMessage.split(', Context: ')[1]);
+
+        // Now you can use the context object
+        console.log(context);
+      };
+
       this.registerListenersOnWebsocket();
       while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
         await new Promise((r) => setTimeout(r, 50));
