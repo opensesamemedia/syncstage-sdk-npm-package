@@ -86,6 +86,7 @@ export default class {
 
   private onOpen() {
     console.log('Connected to WebSocket server');
+    this.onDesktopAgentAquiredStatus(false);
 
     if (this.reconnectInterval !== null) {
       clearInterval(this.reconnectInterval);
@@ -133,7 +134,6 @@ export default class {
         if (type === SyncStageMessageType.Pong) {
           this.isDesktopAgentConnected = true;
           this.lastPongReceivedDate = Date.now();
-          this.onDesktopAgentAquiredStatus(errorCode === SyncStageSDKErrorCode.SYNCSTAGE_OPENED_IN_ANOTHER_TAB);
         }
       } else {
         console.log('Received message unrelated to any msgId, handling as delegate.');
@@ -167,6 +167,7 @@ export default class {
     this.reconnecting = false;
     this.controlledDisconnection = false;
     this.setReconnectInterval();
+    this.onDesktopAgentAquiredStatus(true);
   }
 
   private registerListenersOnWebsocket(): void {
@@ -243,17 +244,6 @@ export default class {
       }
 
       this.ws = new WebSocket(this.url);
-      this.ws.onerror = function (event) {
-        // The server's response is available in event.message
-        console.log(event);
-        const errorMessage = event.message;
-
-        // Parse the error message to extract the context object
-        const context = JSON.parse(errorMessage.split(', Context: ')[1]);
-
-        // Now you can use the context object
-        console.log(context);
-      };
 
       this.registerListenersOnWebsocket();
       while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
