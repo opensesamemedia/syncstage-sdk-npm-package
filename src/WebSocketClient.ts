@@ -5,7 +5,7 @@ import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
 const RECONNECT_INTERVAL_MS = 5000;
-const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 60000;
 const PING_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
 export interface IWebsocketPayload {
@@ -28,6 +28,7 @@ export default class {
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
   private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
   private connected = false;
+  private isDesktopAgentConnected = false;
   private pingInterval: any;
   private reconnectInterval: any;
   private lastPongReceivedDate: number | null = null;
@@ -85,6 +86,7 @@ export default class {
 
   private onOpen() {
     console.log('Connected to WebSocket server');
+    this.onDesktopAgentAquiredStatus(false);
 
     if (this.reconnectInterval !== null) {
       clearInterval(this.reconnectInterval);
@@ -97,24 +99,16 @@ export default class {
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
-    setTimeout(() => {
-      this.sendMessage(SyncStageMessageType.AssignWebsocketId, { websocketId: this.websocketId }, 3, 5000);
-    }, 500);
-
     this.pingInterval = setInterval(async () => {
       this.sendMessage(SyncStageMessageType.Ping, {});
 
-      if (
-        (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) ||
-        (this.lastPongReceivedDate === null &&
-          this.lastConnectedDate != null &&
-          Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_PONG_MS)
-      ) {
+      if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
         console.log(
-          `Did not receive Pong message since at least ${ALLOWED_TIME_WITHOUT_PONG_MS / 1000}s. Last pong date: ${
+          `Did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
             this.lastPongReceivedDate
           }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
         );
+        this.isDesktopAgentConnected = false;
         await this.reconnect();
       }
     }, PING_INTERVAL_MS);
@@ -138,8 +132,8 @@ export default class {
         this.requests.delete(msgId);
 
         if (type === SyncStageMessageType.Pong) {
-          this.lastPongReceivedDate = new Date(time).getTime();
-          this.onDesktopAgentAquiredStatus(errorCode === SyncStageSDKErrorCode.SYNCSTAGE_OPENED_IN_ANOTHER_TAB);
+          this.isDesktopAgentConnected = true;
+          this.lastPongReceivedDate = Date.now();
         }
       } else {
         console.log('Received message unrelated to any msgId, handling as delegate.');
@@ -173,6 +167,7 @@ export default class {
     this.reconnecting = false;
     this.controlledDisconnection = false;
     this.setReconnectInterval();
+    this.onDesktopAgentAquiredStatus(true);
   }
 
   private registerListenersOnWebsocket(): void {
@@ -216,6 +211,10 @@ export default class {
     return this.connected;
   }
 
+  public desktopAgentConnected(): boolean {
+    return this.isDesktopAgentConnected;
+  }
+
   async reconnect() {
     if (this.reconnecting) {
       console.log('Reconnection in progress...');
@@ -245,6 +244,7 @@ export default class {
       }
 
       this.ws = new WebSocket(this.url);
+
       this.registerListenersOnWebsocket();
       while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
         await new Promise((r) => setTimeout(r, 50));
