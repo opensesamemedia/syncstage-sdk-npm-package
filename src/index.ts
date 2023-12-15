@@ -14,7 +14,8 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import { IZoneLatency } from './models/IZoneLatency';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
-const BASE_WS_ADDRESS = 'ws://localhost';
+// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
+const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
@@ -22,23 +23,31 @@ export default class SyncStage implements ISyncStage {
   public userDelegate: ISyncStageUserDelegate | null;
   public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
+  public onTokenExpired: (() => Promise<string>) | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onDesktopAgentReconnected: () => void = () => {};
 
   private ws: WebSocketClient;
+  private jwt: string | null = null;
+  private baseWssAddress: string;
+  private wsAddressForDesktopAgent: string;
+  private wsAddressForSDK: string;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
     discoveryDelegate: ISyncStageDiscoveryDelegate | null,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
-    desktopAgentPort = 18080,
-    baseWsAddress: string = BASE_WS_ADDRESS,
+    onTokenExpired: (() => Promise<string>) | null,
+    baseWsAddress: string = BASE_WSS_ADDRESS,
   ) {
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
     this.desktopAgentDelegate = desktopAgentDelegate;
+    this.onTokenExpired = onTokenExpired;
+    this.baseWssAddress = baseWsAddress;
+    [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = this.generateWebSocketURLS();
 
     const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
       this.onDelegateMessage(responseType, content);
@@ -52,12 +61,7 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(
-      `${baseWsAddress}:${desktopAgentPort}`,
-      onDelegateMessage,
-      this.onDesktopAgentReconnected,
-      onDesktopAgentAquiredStatus,
-    );
+    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onDesktopAgentReconnected, onDesktopAgentAquiredStatus);
     console.log('Welcome to SyncStage');
   }
 
@@ -250,7 +254,6 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.ChangeLatencyOptimizationLevelResponse:
       case SyncStageMessageType.ProvisionResponse:
       case SyncStageMessageType.ToggleMicrophoneResponse:
-      case SyncStageMessageType.WebsocketAssigned:
       case SyncStageMessageType.ChangeReceiverVolumeResponse:
       case SyncStageMessageType.StartRecordingResponse:
       case SyncStageMessageType.StopRecordingResponse: {
@@ -270,23 +273,54 @@ export default class SyncStage implements ISyncStage {
     if (response === null) {
       return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
     }
-    // // TODO: UNCOMMENT WHEN INTEGRATING WITH ACTUAL DESKTOP AGENT
-    // if(!this.responseTypeMatchesRequestType(requestType, response)){
-    //   return SyncStageSDKErrorCode.UNKNOWN_ERROR
-    // }
+    if (!this.responseTypeMatchesRequestType(requestType, response)) {
+      return [null, SyncStageSDKErrorCode.UNKNOWN_ERROR];
+    }
 
     return [this.castAgentResponseContentToSDKResponseObject(response.type, response.content), response.errorCode];
   }
+  private async isJwtExpired() {
+    if (this.jwt != null) {
+      // check if token will be valid for at least the next 10 seconds
+      const dateIn10sec = Date.now() + 10 * 1000;
+      const jwtExp = JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+
+      const expired = dateIn10sec >= jwtExp;
+
+      if (expired && this.onTokenExpired != null) {
+        const newToken = await this.onTokenExpired();
+        if (newToken != null && newToken.length > 5) {
+          await this.updateToken(newToken);
+          console.log('New jwt updated.');
+          return false;
+        }
+      } else if (expired) {
+        console.log('Jwt expired.');
+      }
+      return expired;
+    } else {
+      console.log('No JWT provided, treating as expired.');
+      return true;
+    }
+  }
   // #endregion
 
-  async init(applicationSecretId: string, applicationSecretKey: string): Promise<SyncStageSDKErrorCode> {
+  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
-
+    this.jwt = jwt;
     const response = await this.ws.sendMessage(requestType, {
-      applicationSecretId,
-      applicationSecretKey,
-      minDriverVersion: MIN_DRIVER_VERSION,
+      token: jwt,
+    });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
+    const requestType = SyncStageMessageType.UpdateTokenRequest;
+    console.log(requestType);
+    this.jwt = jwt;
+    const response = await this.ws.sendMessage(requestType, {
+      token: jwt,
     });
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
@@ -296,15 +330,19 @@ export default class SyncStage implements ISyncStage {
     this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
   }
 
-  isDesktopAgentConnected(): boolean {
-    return this.ws.isConnected();
+  public isDesktopAgentConnected(): boolean {
+    return this.ws.desktopAgentConnected();
   }
 
-  getSDKVersion(): string {
+  public getSDKVersion(): string {
     return version;
   }
 
   async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.BestAvailableServerRequest;
     console.log(requestType);
 
@@ -313,6 +351,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.ServerInstancesRequest;
     console.log(requestType);
 
@@ -321,6 +363,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async createSession(zoneId: string, studioServerId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.CreateSessionRequest;
     console.log(`createSession ${requestType}`);
 
@@ -335,6 +381,10 @@ export default class SyncStage implements ISyncStage {
     studioServerId: string,
     displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
@@ -349,6 +399,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+
     const requestType = SyncStageMessageType.LeaveRequest;
     console.log(requestType);
 
@@ -357,6 +411,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
     const requestType = SyncStageMessageType.SessionRequest;
     console.log(requestType);
 
@@ -365,6 +423,10 @@ export default class SyncStage implements ISyncStage {
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+
     const requestType = SyncStageMessageType.ChangeReceiverVolumeRequest;
     console.log(requestType);
 
@@ -373,6 +435,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getReceiverVolume(identifier: string): Promise<[number | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetReceiverVolumeRequest;
     console.log(requestType);
 
@@ -381,6 +446,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async toggleMicrophone(mute: boolean): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.ToggleMicrophoneRequest;
     console.log(requestType);
 
@@ -389,6 +457,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.IsMicrophoneMutedRequest;
     console.log(`session ${requestType}`);
 
@@ -397,6 +468,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetReceiverMeasurementsRequest;
     console.log(`session ${requestType}`);
 
@@ -405,6 +479,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.GetTransmitterMeasurementsRequest;
     console.log(`session ${requestType}`);
 
@@ -413,6 +490,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
     const requestType = SyncStageMessageType.LatencyOptimizationLevelRequest;
 
     console.log(`session ${requestType}`);
@@ -422,6 +502,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async changeLatencyOptimizationLevel(level: number): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.ChangeLatencyOptimizationLevelRequest;
 
     console.log(`session ${requestType}`);
@@ -431,6 +514,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   async startRecording(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.StartRecordingRequest;
 
     console.log(`session ${requestType}`);
@@ -440,12 +526,42 @@ export default class SyncStage implements ISyncStage {
   }
 
   async stopRecording(): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.StopRecordingRequest;
 
     console.log(`session ${requestType}`);
 
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  public getDesktopAgentProtocolHandler(): string {
+    const encodedWssAddress = encodeURIComponent(this.wsAddressForDesktopAgent);
+    return `syncstageagent://${encodedWssAddress}`;
+  }
+
+  private generateWebSocketURLS(): string[] {
+    const pairingCode = localStorage.getItem('pairingCode') || this.generateRandomString(256);
+    localStorage.setItem('pairingCode', pairingCode);
+
+    return [
+      `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
+      `${this.baseWssAddress}?peerType=BROWSER_SDK&pairingCode=${pairingCode}`,
+    ];
+  }
+
+  private generateRandomString(length: number): string {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      result += characters.charAt(randomIndex);
+    }
+
+    return result;
   }
 }
 
