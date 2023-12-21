@@ -1,13 +1,12 @@
 import { v4 as uuidv4 } from 'uuid';
 
 import { SyncStageMessageType } from './SyncStageMessageType';
-import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
 
 const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
 const RECONNECT_INTERVAL_MS = 5000;
-const WAIT_FOR_RESPONSE_TIMEOUT_MS = 60000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
 const PING_INTERVAL_MS = 5000;
-const ALLOWED_TIME_WITHOUT_PONG_MS = 15000;
+const ALLOWED_TIME_WITHOUT_PONG_MS = 20000;
 export interface IWebsocketPayload {
   type: SyncStageMessageType;
   msgId: string;
@@ -34,9 +33,8 @@ export default class {
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
   private controlledDisconnection = false;
-  private websocketId: string;
-  private onWebsocketReconnected: () => void;
   private reconnecting = false;
+  private onWebsocketReconnected: () => void;
 
   constructor(
     url: string,
@@ -45,7 +43,6 @@ export default class {
     onDesktopAgentAquiredStatus: (aquired: boolean) => void,
   ) {
     this.url = url;
-    this.websocketId = uuidv4();
     this.onDelegateMessage = onDelegateMessage;
     this.ws = new WebSocket(url);
     this.requests = new Map();
@@ -106,14 +103,13 @@ export default class {
         console.log(
           `Did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
             this.lastPongReceivedDate
-          }. Last connected date: ${this.lastConnectedDate}. Reconnecting.`,
+          }. Last connected date: ${this.lastConnectedDate}.`,
         );
         this.isDesktopAgentConnected = false;
-        await this.reconnect();
       }
     }, PING_INTERVAL_MS);
 
-    console.log('onWebsocketReconnected');
+    this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false);
     this.onWebsocketReconnected();
   }
 
@@ -134,9 +130,13 @@ export default class {
         if (type === SyncStageMessageType.Pong) {
           this.isDesktopAgentConnected = true;
           this.lastPongReceivedDate = Date.now();
+        } else if (type == SyncStageMessageType.DesktopAgentConnected) {
+          this.isDesktopAgentConnected = true;
+        } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
+          this.isDesktopAgentConnected = false;
         }
       } else {
-        console.log('Received message unrelated to any msgId, handling as delegate.');
+        console.log(`${type} handling as delegate.`);
         this.onDelegateMessage(type, content);
       }
     } catch (error) {
@@ -249,11 +249,8 @@ export default class {
       while (this.ws && this.ws.readyState !== WebSocket.OPEN) {
         await new Promise((r) => setTimeout(r, 50));
       }
-      if (this.onWebsocketReconnected && this.ws.readyState === WebSocket.OPEN) {
-        this.onWebsocketReconnected();
-      }
     } catch (error) {
-      console.log(`Could not reconnect to the Websocket. ${error}`);
+      console.log(`Could not reconnect to the Websocket ${this.url}. ${error}`);
     } finally {
       this.reconnecting = false;
     }
@@ -273,7 +270,8 @@ export default class {
     type: SyncStageMessageType,
     content: any,
     retries = 0,
-    responseTimeout = WAIT_FOR_RESPONSE_TIMEOUT_MS,
+    responseTimeout: number = WAIT_FOR_RESPONSE_TIMEOUT_MS,
+    waitForResponse = true,
   ): Promise<IWebsocketPayload | null> {
     await this.waitForTheConnection();
     if (!this.connected) {
@@ -293,27 +291,39 @@ export default class {
     if (type !== SyncStageMessageType.Ping) {
       console.log(`Sending to WS: ${strPayload}`);
     }
+    if (waitForResponse) {
+      try {
+        this.ws.send(strPayload);
+        const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
+          const timeout = window.setTimeout(() => {
+            this.requests.delete(msgId);
+            reject(new Error(`Timeout: ${responseTimeout / 1000}s elapsed without a response for ${type}.`));
+          }, responseTimeout);
 
-    try {
-      this.ws.send(strPayload);
-      const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
-        const timeout = window.setTimeout(() => {
-          this.requests.delete(msgId);
-          reject(new Error(`Timeout: ${responseTimeout / 1000}s elapsed without a response for ${type}.`));
-        }, responseTimeout);
+          this.requests.set(msgId, { resolve, timeout });
+        });
 
-        this.requests.set(msgId, { resolve, timeout });
-      });
-
-      return desktopAgentResponse;
-    } catch (error) {
-      console.log(`Could not send message to the Desktop Agent, or have not received a response. Error: ${error}`);
-      if (retries) {
-        console.log(`Retries left: ${retries} for ${type}`);
-        return this.sendMessage(type, content, retries - 1);
-      } else {
-        return null;
+        return desktopAgentResponse;
+      } catch (error) {
+        console.log(`Could not send message ${msgId} to the Desktop Agent, or have not received a response. Error: ${error}`);
+        if (retries) {
+          console.log(`Retries left: ${retries} for ${type}`);
+          return this.sendMessage(type, content, retries - 1, responseTimeout, waitForResponse);
+        } else {
+          return null;
+        }
       }
+    } else {
+      try {
+        this.ws.send(strPayload);
+      } catch (error) {
+        console.log(`Could not send message ${msgId} to the Desktop Agent. Error: ${error}`);
+        if (retries) {
+          console.log(`Retries left: ${retries} for ${type}`);
+          return this.sendMessage(type, content, retries - 1, responseTimeout, waitForResponse);
+        }
+      }
+      return null;
     }
   }
 }
