@@ -166,6 +166,15 @@ export default class SyncStage implements ISyncStage {
         }
         break;
       }
+      case SyncStageMessageType.DiscoveryLatencyResult: {
+        if (this.discoveryDelegate !== null) {
+          console.log('calling discoveryDelegate.discoveryResults');
+          this.discoveryDelegate.discoveryLatencyTestResults(content.results);
+        } else {
+          console.log('discoveryDelegate is not added');
+        }
+        break;
+      }
 
       case SyncStageMessageType.DesktopAgentConnected: {
         if (this.desktopAgentDelegate !== null) {
