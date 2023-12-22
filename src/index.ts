@@ -356,7 +356,8 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.BestAvailableServerRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {});
+    // This procedure takes a lot of time to measure latency for numerous servers, that is why timeout is 240s
+    const response = await this.ws.sendMessage(requestType, {}, 0, 240000);
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
