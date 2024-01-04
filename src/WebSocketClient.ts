@@ -81,7 +81,7 @@ export default class {
     }, RECONNECT_INTERVAL_MS);
   }
 
-  private onOpen() {
+  private async onOpen() {
     console.log('Connected to WebSocket server');
     this.onDesktopAgentAquiredStatus(false);
 
@@ -97,7 +97,7 @@ export default class {
     this.lastConnectedDate = Date.now();
 
     this.pingInterval = setInterval(async () => {
-      this.sendMessage(SyncStageMessageType.Ping, {});
+      await this.sendMessage(SyncStageMessageType.Ping, {});
 
       if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
         console.log(
@@ -109,7 +109,7 @@ export default class {
       }
     }, PING_INTERVAL_MS);
 
-    this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false);
+    await this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false, 300);
     this.onWebsocketReconnected();
   }
 
@@ -132,6 +132,7 @@ export default class {
           this.lastPongReceivedDate = Date.now();
         } else if (type == SyncStageMessageType.DesktopAgentConnected) {
           this.isDesktopAgentConnected = true;
+          this.lastPongReceivedDate = Date.now();
         } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
           this.isDesktopAgentConnected = false;
         }
@@ -172,7 +173,7 @@ export default class {
 
   private registerListenersOnWebsocket(): void {
     console.log(`Connecting to the websocket server: ${this.url}`);
-    this.ws.addEventListener('open', () => {
+    this.ws.addEventListener('open', async () => {
       this.onOpen();
     });
 
@@ -272,7 +273,12 @@ export default class {
     retries = 0,
     responseTimeout: number = WAIT_FOR_RESPONSE_TIMEOUT_MS,
     waitForResponse = true,
+    delay = 0,
   ): Promise<IWebsocketPayload | null> {
+    if (delay) {
+      await new Promise((r) => setTimeout(r, 0));
+    }
+
     await this.waitForTheConnection();
     if (!this.connected) {
       console.log(`Cannot send ${type} message to ws, no connection.`);
