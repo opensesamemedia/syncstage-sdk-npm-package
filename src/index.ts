@@ -14,8 +14,7 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import { IZoneLatency } from './models/IZoneLatency';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
-// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
