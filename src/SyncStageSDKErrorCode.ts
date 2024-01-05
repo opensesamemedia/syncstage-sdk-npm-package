@@ -11,6 +11,7 @@ enum SyncStageSDKErrorCode {
   'BAD_VOLUME_VALUE' = 4,
   'NO_ZONE_AVAILABLE' = 5,
   'NO_STUDIO_SERVER_AVAILABLE' = 6,
+  'NO_INPUT_DEVICE' = 7,
 }
 
 export default SyncStageSDKErrorCode;

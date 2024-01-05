@@ -25,13 +25,13 @@ export default class SyncStage implements ISyncStage {
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
   public onTokenExpired: (() => Promise<string>) | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  private onDesktopAgentReconnected: () => void = () => {};
 
   private ws: WebSocketClient;
   private jwt: string | null = null;
   private baseWssAddress: string;
   private wsAddressForDesktopAgent: string;
   private wsAddressForSDK: string;
+  private onWebsocketReconnected: () => void = () => {};
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -61,8 +61,13 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onDesktopAgentReconnected, onDesktopAgentAquiredStatus);
+    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onWebsocketReconnected, onDesktopAgentAquiredStatus);
     console.log('Welcome to SyncStage');
+  }
+
+  public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
+    this.onWebsocketReconnected = onWebsocketReconnected;
+    this.ws.updateOnWebsocketReconnected(this.onWebsocketReconnected);
   }
 
   // #region Private methods
@@ -161,13 +166,32 @@ export default class SyncStage implements ISyncStage {
         }
         break;
       }
-
       case SyncStageMessageType.DiscoveryLatencyResult: {
         if (this.discoveryDelegate !== null) {
           console.log('calling discoveryDelegate.discoveryResults');
           this.discoveryDelegate.discoveryLatencyTestResults(content.results);
         } else {
           console.log('discoveryDelegate is not added');
+        }
+        break;
+      }
+
+      case SyncStageMessageType.DesktopAgentConnected: {
+        if (this.desktopAgentDelegate !== null) {
+          console.log('calling desktopAgentDelegate.desktopAgentConnected');
+          this.desktopAgentDelegate?.desktopAgentConnected();
+        } else {
+          console.log('desktopAgentDelegate is not added');
+        }
+        break;
+      }
+
+      case SyncStageMessageType.DesktopAgentDisconnected: {
+        if (this.desktopAgentDelegate !== null) {
+          console.log('calling desktopAgentDelegate.desktopAgentDisconnected');
+          this.desktopAgentDelegate?.desktopAgentDisconnected();
+        } else {
+          console.log('desktopAgentDelegate is not added');
         }
         break;
       }
@@ -325,11 +349,6 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
-    this.onDesktopAgentReconnected = onDesktopAgentReconnected;
-    this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
-  }
-
   public isDesktopAgentConnected(): boolean {
     return this.ws.desktopAgentConnected();
   }
@@ -346,7 +365,8 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.BestAvailableServerRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {});
+    // This procedure takes a lot of time to measure latency for numerous servers, that is why timeout is 240s
+    const response = await this.ws.sendMessage(requestType, {}, 0, 240000);
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 

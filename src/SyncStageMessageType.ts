@@ -48,4 +48,7 @@ export enum SyncStageMessageType {
   RecordingStopped = 'RecordingStopped',
   UpdateTokenRequest = 'UpdateTokenRequest',
   UpdateTokenResponse = 'UpdateTokenResponse',
+  IsDesktopAgentConnected = 'IsDesktopAgentConnected',
+  DesktopAgentConnected = 'DesktopAgentConnected',
+  DesktopAgentDisconnected = 'DesktopAgentDisconnected',
 }
