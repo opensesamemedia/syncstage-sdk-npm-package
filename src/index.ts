@@ -181,6 +181,9 @@ export default class SyncStage implements ISyncStage {
         if (this.desktopAgentDelegate !== null) {
           console.log('calling desktopAgentDelegate.desktopAgentConnected');
           this.desktopAgentDelegate?.desktopAgentConnected();
+          if (this.jwt && !this.isJwtExpired()) {
+            this.init(this.jwt);
+          }
         } else {
           console.log('desktopAgentDelegate is not added');
         }

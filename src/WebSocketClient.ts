@@ -36,6 +36,7 @@ export default class {
   private lastConnectedDate: number | null = null;
   private reconnecting = false;
   private onWebsocketReconnected: () => void;
+  private onWebsocketReconnectedExecuted = false;
   private websocketId: string;
   private online: boolean | null = null;
 
@@ -88,12 +89,12 @@ export default class {
 
   private async onOpen() {
     console.log(`Connected WebSocket ${this.websocketId} to server`);
-    this.onDesktopAgentAquiredStatus(false);
 
     this.connected = true;
     this.reconnecting = false;
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
+    this.onWebsocketReconnectedExecuted = false;
 
     this.pingInterval = setInterval(async () => {
       await this.sendMessage(SyncStageMessageType.Ping, {});
@@ -126,12 +127,15 @@ export default class {
         resolve(data);
         this.requests.delete(msgId);
 
-        if (type === SyncStageMessageType.Pong) {
+        if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
           this.isDesktopAgentConnected = true;
           this.lastPongReceivedDate = Date.now();
-        } else if (type == SyncStageMessageType.DesktopAgentConnected) {
-          this.isDesktopAgentConnected = true;
-          this.lastPongReceivedDate = Date.now();
+          this.onDesktopAgentAquiredStatus(false);
+
+          if (!this.onWebsocketReconnectedExecuted) {
+            this.onWebsocketReconnectedExecuted = true;
+            this.onWebsocketReconnected();
+          }
         } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
           this.isDesktopAgentConnected = false;
         }
@@ -164,6 +168,7 @@ export default class {
 
   private async onError(error: Event) {
     console.log('WebSocket error:', error);
+    this.onDesktopAgentAquiredStatus(true);
     clearInterval(this.pingInterval);
     this.pingInterval = null;
     await this.closeWebSocket();
@@ -171,7 +176,6 @@ export default class {
     this.reconnecting = false;
     await this.resolveAllPendingMessagesOnDisconnected();
     await this.reconnect();
-    this.onDesktopAgentAquiredStatus(true);
   }
 
   private registerListenersOnWebsocket(): void {
