@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -32,7 +34,10 @@ export default class SyncStage implements ISyncStage {
   private baseWssAddress: string;
   private wsAddressForDesktopAgent: string;
   private wsAddressForSDK: string;
-  private onWebsocketReconnected: () => void = () => {};
+  private onWebsocketReconnected: () => void = async () => {};
+  // eslint-disable-next-line max-len
+  private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
+  private syncStageObjectId: string;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -42,6 +47,7 @@ export default class SyncStage implements ISyncStage {
     onTokenExpired: (() => Promise<string>) | null,
     baseWsAddress: string = BASE_WSS_ADDRESS,
   ) {
+    this.syncStageObjectId = uuidv4();
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
@@ -62,7 +68,28 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onWebsocketReconnected, onDesktopAgentAquiredStatus);
+    const setAllConnectionsStatusToOffline = () => {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      const self = this;
+
+      console.log('setAllConnectionsStatusToOffline');
+      this.connectivityDelegate?.transmitterConnectivityChanged(false);
+
+      this.sessionState?.receivers.forEach((connection) =>
+        this.connectivityDelegate?.receiverConnectivityChanged(connection.identifier, false),
+      );
+    };
+
+    this.ws = new WebSocketClient(
+      this.syncStageObjectId,
+      this.wsAddressForSDK,
+      onDelegateMessage,
+      this.onWebsocketReconnected,
+      onDesktopAgentAquiredStatus,
+      setAllConnectionsStatusToOffline,
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      () => {},
+    );
     console.log('Welcome to SyncStage');
   }
 
@@ -96,6 +123,7 @@ export default class SyncStage implements ISyncStage {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userJoined');
           this.userDelegate.userJoined(content);
+          this.sessionState?.receivers.push(content);
         } else {
           console.log('userDelegate is not added');
         }
@@ -105,6 +133,12 @@ export default class SyncStage implements ISyncStage {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userLeft');
           this.userDelegate.userLeft(content.identifier);
+
+          const indexToRemove = this.sessionState?.receivers.findIndex((receiver) => receiver.identifier === content.identifier) ?? -1;
+
+          if (indexToRemove !== -1) {
+            this.sessionState?.receivers.splice(indexToRemove, 1);
+          }
         } else {
           console.log('userDelegate is not added');
         }
@@ -181,9 +215,6 @@ export default class SyncStage implements ISyncStage {
         if (this.desktopAgentDelegate !== null) {
           console.log('calling desktopAgentDelegate.desktopAgentConnected');
           this.desktopAgentDelegate?.desktopAgentConnected();
-          if (this.jwt && !this.isJwtExpired()) {
-            this.init(this.jwt);
-          }
         } else {
           console.log('desktopAgentDelegate is not added');
         }
@@ -419,7 +450,9 @@ export default class SyncStage implements ISyncStage {
       studioServerId,
       displayName,
     });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    const [sessionState, errorCode] = this.parseResponseErrorCodeAndContent(requestType, response);
+    this.sessionState = sessionState;
+    return [sessionState, errorCode];
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
@@ -431,7 +464,12 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
+
+    if (errorCode === SyncStageSDKErrorCode.OK) {
+      this.sessionState = null;
+    }
+    return errorCode;
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
@@ -443,7 +481,9 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    const [sessionState, errorCode] = this.parseResponseErrorCodeAndContent(requestType, response);
+    this.sessionState = sessionState;
+    return [sessionState, errorCode];
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {

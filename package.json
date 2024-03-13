@@ -1,6 +1,6 @@
 {
   "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
-  "version": "0.4.2-rc17",
+  "version": "0.4.2-rc35",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
@@ -58,5 +58,8 @@
     "async-mutex": "^0.4.0",
     "is-online": "^10.0.0",
     "uuid": "^9.0.0"
+  },
+  "overrides": {
+    "public-ip": "6.0.1"
   }
 }
