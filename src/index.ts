@@ -89,6 +89,7 @@ export default class SyncStage implements ISyncStage {
       setAllConnectionsStatusToOffline,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => {},
+      this.desktopAgentDelegate,
     );
     console.log('Welcome to SyncStage');
   }
@@ -255,7 +256,7 @@ export default class SyncStage implements ISyncStage {
 
   private parseResponseOnlyErrorCode(requestType: SyncStageMessageType, response: IWebsocketPayload | null): SyncStageSDKErrorCode {
     if (response === null) {
-      return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
+      return SyncStageSDKErrorCode.TIMEOUT_ERROR;
     }
     if (!this.responseTypeMatchesRequestType(requestType, response)) {
       return SyncStageSDKErrorCode.UNKNOWN_ERROR;
@@ -330,7 +331,7 @@ export default class SyncStage implements ISyncStage {
     response: IWebsocketPayload | null,
   ): [any, SyncStageSDKErrorCode] {
     if (response === null) {
-      return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
+      return [null, SyncStageSDKErrorCode.TIMEOUT_ERROR];
     }
     if (!this.responseTypeMatchesRequestType(requestType, response)) {
       return [null, SyncStageSDKErrorCode.UNKNOWN_ERROR];

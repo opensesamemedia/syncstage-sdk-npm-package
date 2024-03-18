@@ -3,9 +3,9 @@ import isOnline from 'is-online';
 import Sarus from '@anephenix/sarus';
 
 import { SyncStageMessageType } from './SyncStageMessageType';
+import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
-const WAIT_FOR_CONNECTION_BEFORE_SENDING_MS = 5000;
-const WAIT_FOR_RESPONSE_TIMEOUT_MS = 20000;
+const WAIT_FOR_RESPONSE_TIMEOUT_MS = 35000;
 const PING_INTERVAL_MS = 5000;
 const ISONLINE_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_PONG_MS = 30000;
@@ -38,6 +38,7 @@ export default class {
   private wasSleepingInterval: any = null;
   private watchdogInterval: any = null;
   private lastTimeActive = Date.now();
+  private desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
 
   private reconnectingTimestamp: number | null = null;
   private lastPongReceivedDate: number | null = null;
@@ -55,6 +56,7 @@ export default class {
     onDesktopAgentAquiredStatus: (aquired: boolean) => void,
     onOffline: () => void,
     onOnline: () => void,
+    desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null = null,
   ) {
     this.syncStageObjectId = syncStageObjectId;
     this.url = url;
@@ -65,6 +67,7 @@ export default class {
     this.onDesktopAgentAquiredStatus = onDesktopAgentAquiredStatus;
     this.onOnline = onOnline;
     this.onOffline = onOffline;
+    this.desktopAgentDelegate = desktopAgentDelegate;
 
     this.onOpen = this.onOpen.bind(this);
     this.onMessage = this.onMessage.bind(this);
@@ -180,7 +183,11 @@ export default class {
     if (!this.pingInterval) {
       this.pingInterval = setInterval(async () => {
         await this.sendMessage(SyncStageMessageType.Ping, {});
+      }, PING_INTERVAL_MS);
+    }
 
+    if (!this.pingCheckInterval) {
+      this.pingCheckInterval = setInterval(async () => {
         if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
           console.log(
             `Websocket did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
@@ -188,25 +195,11 @@ export default class {
             }. Last connected date: ${this.lastConnectedDate}.`,
           );
           this.isDesktopAgentConnected = false;
-          if (!this.reconnecting) {
-            this.reconnecting = true;
-            this.reconnectingTimestamp = Date.now();
-            this.sarus.reconnect();
-          }
+          console.log('calling desktopAgentDelegate.desktopAgentLostConnection');
+          this.desktopAgentDelegate?.desktopAgentLostConnection();
         }
       }, PING_INTERVAL_MS);
     }
-
-    this.pingCheckInterval = setInterval(async () => {
-      if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
-        console.log(
-          `Websocket did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
-            this.lastPongReceivedDate
-          }. Last connected date: ${this.lastConnectedDate}.`,
-        );
-        this.isDesktopAgentConnected = false;
-      }
-    }, PING_INTERVAL_MS);
 
     await this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false, 300);
   }
@@ -217,6 +210,7 @@ export default class {
       const { msgId, type, content } = data;
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
+        this.desktopAgentDelegate?.desktopAgentConnectionKeepAlive();
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
