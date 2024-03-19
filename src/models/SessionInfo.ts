@@ -6,7 +6,7 @@ import { Session } from './Session';
 export default class SessionInfo implements ISessionInfo {
   constructor(
     public sessionId: string,
-    public sessionCode: string,
+    public sessionCode: string | null = null,
     public sessionStatus: string,
     public serverIsReady: boolean,
     public websocketUrl: string,
