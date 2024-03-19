@@ -7,6 +7,7 @@ export class SessionIdentifier implements ISessionIdentifier {
 export class Session implements ISession {
   constructor(
     public sessionId: string,
+    public sessionCode: string | null = null,
     public createdAt: string,
     public updatedAt: string,
     public transmitter: IConnection | null = null,

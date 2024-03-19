@@ -6,6 +6,7 @@ import { Session } from './Session';
 export default class SessionInfo implements ISessionInfo {
   constructor(
     public sessionId: string,
+    public sessionCode: string,
     public sessionStatus: string,
     public serverIsReady: boolean,
     public websocketUrl: string,
@@ -19,6 +20,14 @@ export default class SessionInfo implements ISessionInfo {
   session(): ISession {
     const transmitter: IConnection | undefined = this.transmitter?.connection();
     const receivers: Array<IConnection> = this.receivers.map((connectionInfo) => connectionInfo.connection());
-    return new Session(this.sessionId, this.createdAt, this.updatedAt, transmitter, receivers, this.recordingStatus == 'started');
+    return new Session(
+      this.sessionId,
+      this.sessionCode,
+      this.createdAt,
+      this.updatedAt,
+      transmitter,
+      receivers,
+      this.recordingStatus == 'started',
+    );
   }
 }
