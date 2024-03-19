@@ -1,3 +1,5 @@
+import { v4 as uuidv4 } from 'uuid';
+
 import type ISyncStage from './ISyncStage';
 import { SyncStageMessageType } from './SyncStageMessageType';
 import SyncStageSDKErrorCode from './SyncStageSDKErrorCode';
@@ -14,7 +16,9 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import { IZoneLatency } from './models/IZoneLatency';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
-const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
+// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
+const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+
 const MIN_DRIVER_VERSION = '1.0.1';
 
 export default class SyncStage implements ISyncStage {
@@ -30,7 +34,10 @@ export default class SyncStage implements ISyncStage {
   private baseWssAddress: string;
   private wsAddressForDesktopAgent: string;
   private wsAddressForSDK: string;
-  private onWebsocketReconnected: () => void = () => {};
+  private onWebsocketReconnected: () => void = async () => {};
+  // eslint-disable-next-line max-len
+  private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
+  private syncStageObjectId: string;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -40,6 +47,7 @@ export default class SyncStage implements ISyncStage {
     onTokenExpired: (() => Promise<string>) | null,
     baseWsAddress: string = BASE_WSS_ADDRESS,
   ) {
+    this.syncStageObjectId = uuidv4();
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
     this.discoveryDelegate = discoveryDelegate;
@@ -60,7 +68,29 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    this.ws = new WebSocketClient(this.wsAddressForSDK, onDelegateMessage, this.onWebsocketReconnected, onDesktopAgentAquiredStatus);
+    const setAllConnectionsStatusToOffline = () => {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      const self = this;
+
+      console.log('setAllConnectionsStatusToOffline');
+      this.connectivityDelegate?.transmitterConnectivityChanged(false);
+
+      this.sessionState?.receivers.forEach((connection) =>
+        this.connectivityDelegate?.receiverConnectivityChanged(connection.identifier, false),
+      );
+    };
+
+    this.ws = new WebSocketClient(
+      this.syncStageObjectId,
+      this.wsAddressForSDK,
+      onDelegateMessage,
+      this.onWebsocketReconnected,
+      onDesktopAgentAquiredStatus,
+      setAllConnectionsStatusToOffline,
+      // eslint-disable-next-line @typescript-eslint/no-empty-function
+      () => {},
+      this.desktopAgentDelegate,
+    );
     console.log('Welcome to SyncStage');
   }
 
@@ -94,6 +124,7 @@ export default class SyncStage implements ISyncStage {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userJoined');
           this.userDelegate.userJoined(content);
+          this.sessionState?.receivers.push(content);
         } else {
           console.log('userDelegate is not added');
         }
@@ -103,6 +134,12 @@ export default class SyncStage implements ISyncStage {
         if (this.userDelegate !== null) {
           console.log('calling userDelegate.userLeft');
           this.userDelegate.userLeft(content.identifier);
+
+          const indexToRemove = this.sessionState?.receivers.findIndex((receiver) => receiver.identifier === content.identifier) ?? -1;
+
+          if (indexToRemove !== -1) {
+            this.sessionState?.receivers.splice(indexToRemove, 1);
+          }
         } else {
           console.log('userDelegate is not added');
         }
@@ -219,7 +256,7 @@ export default class SyncStage implements ISyncStage {
 
   private parseResponseOnlyErrorCode(requestType: SyncStageMessageType, response: IWebsocketPayload | null): SyncStageSDKErrorCode {
     if (response === null) {
-      return SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR;
+      return SyncStageSDKErrorCode.TIMEOUT_ERROR;
     }
     if (!this.responseTypeMatchesRequestType(requestType, response)) {
       return SyncStageSDKErrorCode.UNKNOWN_ERROR;
@@ -294,7 +331,7 @@ export default class SyncStage implements ISyncStage {
     response: IWebsocketPayload | null,
   ): [any, SyncStageSDKErrorCode] {
     if (response === null) {
-      return [null, SyncStageSDKErrorCode.DESKTOP_AGENT_COMMUNICATION_ERROR];
+      return [null, SyncStageSDKErrorCode.TIMEOUT_ERROR];
     }
     if (!this.responseTypeMatchesRequestType(requestType, response)) {
       return [null, SyncStageSDKErrorCode.UNKNOWN_ERROR];
@@ -414,7 +451,9 @@ export default class SyncStage implements ISyncStage {
       studioServerId,
       displayName,
     });
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    const [sessionState, errorCode] = this.parseResponseErrorCodeAndContent(requestType, response);
+    this.sessionState = sessionState;
+    return [sessionState, errorCode];
   }
 
   async leave(): Promise<SyncStageSDKErrorCode> {
@@ -426,7 +465,12 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseOnlyErrorCode(requestType, response);
+    const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
+
+    if (errorCode === SyncStageSDKErrorCode.OK) {
+      this.sessionState = null;
+    }
+    return errorCode;
   }
 
   async session(): Promise<[ISession | null, SyncStageSDKErrorCode]> {
@@ -438,7 +482,9 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
+    const [sessionState, errorCode] = this.parseResponseErrorCodeAndContent(requestType, response);
+    this.sessionState = sessionState;
+    return [sessionState, errorCode];
   }
 
   async changeReceiverVolume(identifier: string, volume: number): Promise<SyncStageSDKErrorCode> {

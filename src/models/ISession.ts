@@ -6,6 +6,7 @@ export interface ISessionIdentifier {
 
 export interface ISession {
   sessionId: string;
+  sessionCode: string | null;
   createdAt: string;
   updatedAt: string;
   transmitter?: IConnection | null;
