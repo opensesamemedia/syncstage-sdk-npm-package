@@ -18,8 +18,6 @@ import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegat
 
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 
-const MIN_DRIVER_VERSION = '1.0.1';
-
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;

@@ -1,6 +1,6 @@
 {
   "name": "@opensesamemedia/syncstage",
-  "version": "0.4.2",
+  "version": "0.4.3",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
