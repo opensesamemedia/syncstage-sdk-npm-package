@@ -364,16 +364,22 @@ export default class SyncStage implements ISyncStage {
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
 
     if (errorCode === SyncStageSDKErrorCode.OK && !this.selectBestZoneInterval) {
+      await this.selectBestZone();
+
       this.selectBestZoneInterval = setInterval(async () => {
-        const [selectedServer, errorCode] = await this.getBestAvailableServer();
-        if (errorCode === SyncStageSDKErrorCode.OK) {
-          console.log('Selected server:', selectedServer);
-          this.selectedServer = selectedServer;
-        }
+        await this.selectBestZone();
       }, SELECT_BEST_ZONE_INTERVAL_MS);
     }
 
     return errorCode;
+  }
+
+  private async selectBestZone() {
+    const [selectedServer, errorCode] = await this.getBestAvailableServer();
+    if (errorCode === SyncStageSDKErrorCode.OK) {
+      console.log('Selected server:', selectedServer);
+      this.selectedServer = selectedServer;
+    }
   }
 
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
@@ -399,7 +405,7 @@ export default class SyncStage implements ISyncStage {
     return version;
   }
 
-  async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
+  private async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
       return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
     }
@@ -463,9 +469,9 @@ export default class SyncStage implements ISyncStage {
   async join(
     sessionCode: string,
     userId: string,
+    displayName?: string | null,
     zoneId?: string | null,
     studioServerId?: string | null,
-    displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
       return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];

@@ -9,12 +9,10 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
-  discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
-  getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;
   createSession(
     userId: string,
@@ -24,9 +22,9 @@ export default interface ISyncStage {
   join(
     sessionCode: string,
     userId: string,
+    displayName?: string | null,
     zoneId?: string | null,
     studioServerId?: string | null,
-    displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]>;
   leave(): Promise<SyncStageSDKErrorCode>;
   session(): Promise<[ISession | null, SyncStageSDKErrorCode]>;
