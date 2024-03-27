@@ -11,17 +11,16 @@ import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
 import { RequestResponseMap } from './RequestResponseMap';
 import { version } from './version';
-import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
-import { IZoneLatency } from './models/IZoneLatency';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
+import { ISelectedServer } from './models/ISelectedServer';
 
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
+const SELECT_BEST_ZONE_INTERVAL_MS = 60000;
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
-  public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
   public onTokenExpired: (() => Promise<string>) | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
@@ -36,10 +35,12 @@ export default class SyncStage implements ISyncStage {
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
 
+  private selectBestZoneInterval: any = null;
+  private selectedServer: ISelectedServer | null = null;
+
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
-    discoveryDelegate: ISyncStageDiscoveryDelegate | null,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
     onTokenExpired: (() => Promise<string>) | null,
     baseWsAddress: string = BASE_WSS_ADDRESS,
@@ -47,7 +48,6 @@ export default class SyncStage implements ISyncStage {
     this.syncStageObjectId = uuidv4();
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
-    this.discoveryDelegate = discoveryDelegate;
     this.desktopAgentDelegate = desktopAgentDelegate;
     this.onTokenExpired = onTokenExpired;
     this.baseWssAddress = baseWsAddress;
@@ -191,41 +191,27 @@ export default class SyncStage implements ISyncStage {
       }
 
       case SyncStageMessageType.DiscoveryResult: {
-        if (this.discoveryDelegate !== null) {
-          console.log('calling discoveryDelegate.discoveryResults');
-          this.discoveryDelegate.discoveryResults(content.zones);
-        } else {
-          console.log('discoveryDelegate is not added');
-        }
+        console.log(`DiscoveryResult: ${JSON.stringify(content)}`);
         break;
       }
       case SyncStageMessageType.DiscoveryLatencyResult: {
-        if (this.discoveryDelegate !== null) {
-          console.log('calling discoveryDelegate.discoveryResults');
-          this.discoveryDelegate.discoveryLatencyTestResults(content.results);
-        } else {
-          console.log('discoveryDelegate is not added');
-        }
+        console.log(`DiscoveryLatencyResult: ${JSON.stringify(content)}`);
         break;
       }
 
       case SyncStageMessageType.DesktopAgentConnected: {
-        if (this.desktopAgentDelegate !== null) {
-          console.log('calling desktopAgentDelegate.desktopAgentConnected');
-          this.desktopAgentDelegate?.desktopAgentConnected();
-        } else {
-          console.log('desktopAgentDelegate is not added');
+        console.log('calling desktopAgentDelegate.desktopAgentConnected');
+        this.desktopAgentDelegate?.desktopAgentConnected();
+        if (this.jwt) {
+          this.updateToken(this.jwt);
         }
+
         break;
       }
 
       case SyncStageMessageType.DesktopAgentDisconnected: {
-        if (this.desktopAgentDelegate !== null) {
-          console.log('calling desktopAgentDelegate.desktopAgentDisconnected');
-          this.desktopAgentDelegate?.desktopAgentDisconnected();
-        } else {
-          console.log('desktopAgentDelegate is not added');
-        }
+        console.log('calling desktopAgentDelegate.desktopAgentDisconnected');
+        this.desktopAgentDelegate?.desktopAgentDisconnected();
         break;
       }
 
@@ -363,19 +349,42 @@ export default class SyncStage implements ISyncStage {
   // #endregion
 
   async init(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
-    this.jwt = jwt;
+
     const response = await this.ws.sendMessage(requestType, {
       token: jwt,
     });
-    return this.parseResponseOnlyErrorCode(requestType, response);
+
+    const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
+
+    if (errorCode === SyncStageSDKErrorCode.OK && !this.selectBestZoneInterval) {
+      this.selectBestZoneInterval = setInterval(async () => {
+        const [selectedServer, errorCode] = await this.getBestAvailableServer();
+        if (errorCode === SyncStageSDKErrorCode.OK) {
+          console.log('Selected server:', selectedServer);
+          this.selectedServer = selectedServer;
+        }
+      }, SELECT_BEST_ZONE_INTERVAL_MS);
+    }
+
+    return errorCode;
   }
 
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
     const requestType = SyncStageMessageType.UpdateTokenRequest;
     console.log(requestType);
-    this.jwt = jwt;
+
     const response = await this.ws.sendMessage(requestType, {
       token: jwt,
     });
@@ -415,7 +424,11 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  async createSession(zoneId: string, studioServerId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]> {
+  async createSession(
+    userId: string,
+    zoneId?: string | null,
+    studioServerId?: string | null,
+  ): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
       return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
     }
@@ -423,15 +436,35 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.CreateSessionRequest;
     console.log(`createSession ${requestType}`);
 
-    const response = await this.ws.sendMessage(requestType, { zoneId, studioServerId, userId });
+    let response;
+    if (zoneId && studioServerId) {
+      response = await this.ws.sendMessage(requestType, { zoneId, studioServerId, userId });
+    } else {
+      if (!this.selectedServer) {
+        const [selectedServer, errorCode] = await this.getBestAvailableServer();
+        if (errorCode === SyncStageSDKErrorCode.OK) {
+          console.log('Selected server:', selectedServer);
+          this.selectedServer = selectedServer;
+        } else {
+          return [null, SyncStageSDKErrorCode.NO_STUDIO_SERVER_AVAILABLE];
+        }
+      }
+      console.log(`Creating session with auto selected server: ${JSON.stringify(this.selectedServer)}`);
+      response = await this.ws.sendMessage(requestType, {
+        zoneId: this.selectedServer?.zoneId,
+        studioServerId: this.selectedServer?.studioServerId,
+        userId,
+      });
+    }
+
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
   async join(
     sessionCode: string,
     userId: string,
-    zoneId: string,
-    studioServerId: string,
+    zoneId?: string | null,
+    studioServerId?: string | null,
     displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
@@ -441,13 +474,36 @@ export default class SyncStage implements ISyncStage {
     const requestType = SyncStageMessageType.JoinRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, {
-      sessionCode,
-      userId,
-      zoneId,
-      studioServerId,
-      displayName,
-    });
+    let response;
+
+    if (zoneId && studioServerId) {
+      console.log(`Joining with zoneId: ${zoneId} and studioServerId: ${studioServerId}`);
+      response = await this.ws.sendMessage(requestType, {
+        sessionCode,
+        userId,
+        zoneId,
+        studioServerId,
+        displayName,
+      });
+    } else {
+      if (!this.selectedServer) {
+        const [selectedServer, errorCode] = await this.getBestAvailableServer();
+        if (errorCode === SyncStageSDKErrorCode.OK) {
+          console.log('Selected server:', selectedServer);
+          this.selectedServer = selectedServer;
+        } else {
+          return [null, SyncStageSDKErrorCode.NO_STUDIO_SERVER_AVAILABLE];
+        }
+      }
+      console.log(`Joining with auto selected server: ${JSON.stringify(this.selectedServer)}`);
+      response = await this.ws.sendMessage(requestType, {
+        sessionCode,
+        userId,
+        zoneId: this.selectedServer?.zoneId,
+        studioServerId: this.selectedServer?.studioServerId,
+        displayName,
+      });
+    }
     const [sessionState, errorCode] = this.parseResponseErrorCodeAndContent(requestType, response);
     this.sessionState = sessionState;
     return [sessionState, errorCode];
@@ -551,7 +607,7 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  async getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]> {
+  async getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
       return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
     }
@@ -632,13 +688,11 @@ export {
   SyncStageSDKErrorCode,
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
-  ISyncStageDiscoveryDelegate,
   ISyncStageDesktopAgentDelegate,
   IServerInstances,
   IServerInstance,
   ISessionIdentifier,
   ISession,
   IMeasurements,
-  IZoneLatency,
   ILatencyOptimizationLevel,
 };

@@ -196,7 +196,7 @@ export default class {
           );
           this.isDesktopAgentConnected = false;
           console.log('calling desktopAgentDelegate.desktopAgentLostConnection');
-          this.desktopAgentDelegate?.desktopAgentLostConnection();
+          this.desktopAgentDelegate?.desktopAgentDisconnected();
         }
       }, PING_INTERVAL_MS);
     }
@@ -210,14 +210,12 @@ export default class {
       const { msgId, type, content } = data;
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
-        this.desktopAgentDelegate?.desktopAgentConnectionKeepAlive();
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }
-
       if (this.requests.has(msgId)) {
         if (type !== SyncStageMessageType.Pong) {
           console.log(`Websocket received: ${event.data}`);

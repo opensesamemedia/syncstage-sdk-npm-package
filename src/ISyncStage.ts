@@ -4,8 +4,7 @@ import ISyncStageUserDelegate from './delegates/ISyncStageUserDelegate';
 import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
-import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
-import { IZoneLatency } from './models/IZoneLatency';
+import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -17,12 +16,16 @@ export default interface ISyncStage {
   getSDKVersion(): string;
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;
-  createSession(zoneId: string, studioServerId: string, userId: string): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
+  createSession(
+    userId: string,
+    zoneId?: string | null,
+    studioServerId?: string | null,
+  ): Promise<[ISessionIdentifier | null, SyncStageSDKErrorCode]>;
   join(
     sessionCode: string,
     userId: string,
-    zoneId: string,
-    studioServerId: string,
+    zoneId?: string | null,
+    studioServerId?: string | null,
     displayName?: string | null,
   ): Promise<[ISession | null, SyncStageSDKErrorCode]>;
   leave(): Promise<SyncStageSDKErrorCode>;
@@ -33,6 +36,6 @@ export default interface ISyncStage {
   isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]>;
   getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
-  getLatencyOptimizationLevel(): Promise<[IZoneLatency | null, SyncStageSDKErrorCode]>;
+  getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]>;
   getDesktopAgentProtocolHandler(): string;
 }
