@@ -108,7 +108,7 @@ export default class {
       const elapsedTime = currentTime - this.lastTimeActive;
 
       if (elapsedTime > 2 * 5000) {
-        // 5 seconds for example
+        // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
         if (!this.reconnecting) {
           this.reconnecting = true;
@@ -175,6 +175,7 @@ export default class {
     this.reconnecting = false;
     console.log(`Connected WebSocket to server`);
 
+    this.onDesktopAgentAquiredStatus(false);
     await this.onWebsocketReconnected();
 
     this.lastPongReceivedDate = null;

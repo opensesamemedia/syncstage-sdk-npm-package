@@ -16,7 +16,7 @@ import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegat
 import { ISelectedServer } from './models/ISelectedServer';
 
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-const SELECT_BEST_ZONE_INTERVAL_MS = 60000;
+const SELECT_BEST_ZONE_INTERVAL_MS = 5 * 60000;
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
