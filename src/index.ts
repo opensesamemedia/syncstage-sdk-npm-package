@@ -15,8 +15,8 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { ISelectedServer } from './models/ISelectedServer';
 
-const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-const SELECT_BEST_ZONE_INTERVAL_MS = 5 * 60000;
+// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
+const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -35,7 +35,6 @@ export default class SyncStage implements ISyncStage {
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
 
-  private selectBestZoneInterval: any = null;
   private selectedServer: ISelectedServer | null = null;
 
   constructor(
@@ -88,7 +87,22 @@ export default class SyncStage implements ISyncStage {
       () => {},
       this.desktopAgentDelegate,
     );
-    console.log('Welcome to SyncStage');
+
+    this.handleUnload = this.handleUnload.bind(this);
+
+    window.addEventListener('unload', async (e) => {
+      e.preventDefault();
+      await this.handleUnload();
+      e.returnValue = true;
+    });
+
+    console.log(`Welcome to SyncStage ${this.getSDKVersion()}`);
+  }
+
+  private async handleUnload(): Promise<void> {
+    // This message is sent directly from the backend service, comented out for the time being
+    // // Send a message to the WebSocket before the window unloads
+    // await this.ws.sendMessage(SyncStageMessageType.TabClosed, {}, undefined, undefined, false);
   }
 
   public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
@@ -296,6 +310,7 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.ChangeLatencyOptimizationLevelResponse:
       case SyncStageMessageType.ProvisionResponse:
+      case SyncStageMessageType.UpdateTokenResponse:
       case SyncStageMessageType.ToggleMicrophoneResponse:
       case SyncStageMessageType.ChangeReceiverVolumeResponse:
       case SyncStageMessageType.StartRecordingResponse:
@@ -363,23 +378,15 @@ export default class SyncStage implements ISyncStage {
 
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
 
-    if (errorCode === SyncStageSDKErrorCode.OK && !this.selectBestZoneInterval) {
-      await this.selectBestZone();
-
-      this.selectBestZoneInterval = setInterval(async () => {
-        await this.selectBestZone();
-      }, SELECT_BEST_ZONE_INTERVAL_MS);
+    if (errorCode === SyncStageSDKErrorCode.OK) {
+      const [selectedServer, errorCode] = await this.getBestAvailableServer();
+      if (errorCode === SyncStageSDKErrorCode.OK) {
+        console.log('Selected server:', selectedServer);
+        this.selectedServer = selectedServer;
+      }
     }
 
     return errorCode;
-  }
-
-  private async selectBestZone() {
-    const [selectedServer, errorCode] = await this.getBestAvailableServer();
-    if (errorCode === SyncStageSDKErrorCode.OK) {
-      console.log('Selected server:', selectedServer);
-      this.selectedServer = selectedServer;
-    }
   }
 
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {

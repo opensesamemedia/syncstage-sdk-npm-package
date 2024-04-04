@@ -83,11 +83,10 @@ export default class {
         close: [this.onClose],
         error: [this.onError],
       },
-      storageType: 'session',
-      retryProcessTimePeriod: 25,
-      storageKey: 'messageQueue',
       reconnectAutomatically: true,
-      retryConnectionDelay: 3000,
+      retryConnectionDelay: 5000,
+      storageType: 'memory',
+      retryProcessTimePeriod: 100,
     });
 
     this.isOnlineInterval = setInterval(async () => {
@@ -110,6 +109,7 @@ export default class {
       if (elapsedTime > 2 * 5000) {
         // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
+        this.reconnectingTimestamp = null;
         if (!this.reconnecting) {
           this.reconnecting = true;
           this.reconnectingTimestamp = Date.now();
@@ -124,7 +124,7 @@ export default class {
       if (this.reconnecting && this.reconnectingTimestamp !== null) {
         const currentTime = Date.now();
         const elapsedTime = currentTime - this.reconnectingTimestamp;
-        if (elapsedTime > 5000) {
+        if (elapsedTime > 8000) {
           // 5 seconds
           console.log('Reconnecting for more than 5 seconds, rerun sarus.reconnect().');
           this.sarus.reconnect();
@@ -172,7 +172,9 @@ export default class {
   }
 
   private async onOpen() {
+    this.sarus.messages = [];
     this.reconnecting = false;
+    this.reconnectingTimestamp = null;
     console.log(`Connected WebSocket to server`);
 
     this.onDesktopAgentAquiredStatus(false);
@@ -236,6 +238,7 @@ export default class {
 
   private async onClose() {
     console.log('Disconnected from WebSocket server.');
+    this.sarus.messages = [];
   }
 
   private async onError(error: Event) {
