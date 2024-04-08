@@ -11,9 +11,11 @@ import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
 import { RequestResponseMap } from './RequestResponseMap';
 import { version } from './version';
+import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { ISelectedServer } from './models/ISelectedServer';
+import { IZoneLatency } from './models/IZoneLatency';
 
 // const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
@@ -22,6 +24,7 @@ export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
   public userDelegate: ISyncStageUserDelegate | null;
   public desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
+  public discoveryDelegate: ISyncStageDiscoveryDelegate | null;
   public onTokenExpired: (() => Promise<string>) | null;
   // eslint-disable-next-line @typescript-eslint/no-empty-function
 
@@ -40,6 +43,7 @@ export default class SyncStage implements ISyncStage {
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
     connectivityDelegate: ISyncStageConnectivityDelegate | null,
+    discoveryDelegate: ISyncStageDiscoveryDelegate | null,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null,
     onTokenExpired: (() => Promise<string>) | null,
     baseWsAddress: string = BASE_WSS_ADDRESS,
@@ -47,6 +51,7 @@ export default class SyncStage implements ISyncStage {
     this.syncStageObjectId = uuidv4();
     this.userDelegate = userDelegate;
     this.connectivityDelegate = connectivityDelegate;
+    this.discoveryDelegate = discoveryDelegate;
     this.desktopAgentDelegate = desktopAgentDelegate;
     this.onTokenExpired = onTokenExpired;
     this.baseWssAddress = baseWsAddress;
@@ -99,10 +104,22 @@ export default class SyncStage implements ISyncStage {
     console.log(`Welcome to SyncStage ${this.getSDKVersion()}`);
   }
 
+  private handleServerSelection(selectedServer: any): void {
+    console.log('Selected server:', selectedServer);
+
+    this.selectedServer = selectedServer;
+    if (this.discoveryDelegate !== null) {
+      console.log('calling discoveryDelegate.serverSelected');
+      this.discoveryDelegate.serverSelected(selectedServer);
+    } else {
+      console.log('discoveryDelegate is not added');
+    }
+  }
+
   private async handleUnload(): Promise<void> {
-    // This message is sent directly from the backend service, comented out for the time being
-    // // Send a message to the WebSocket before the window unloads
-    // await this.ws.sendMessage(SyncStageMessageType.TabClosed, {}, undefined, undefined, false);
+    // This message is sent directly from the backend service, but it seems it is also good to have it as a backup
+    // Send a message to the WebSocket before the window unloads
+    await this.ws.sendMessage(SyncStageMessageType.TabClosed, {}, undefined, undefined, false);
   }
 
   public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
@@ -205,11 +222,21 @@ export default class SyncStage implements ISyncStage {
       }
 
       case SyncStageMessageType.DiscoveryResult: {
-        console.log(`DiscoveryResult: ${JSON.stringify(content)}`);
+        if (this.discoveryDelegate !== null) {
+          console.log('calling discoveryDelegate.discoveryResults');
+          this.discoveryDelegate.discoveryResults(content.zones);
+        } else {
+          console.log('discoveryDelegate is not added');
+        }
         break;
       }
       case SyncStageMessageType.DiscoveryLatencyResult: {
-        console.log(`DiscoveryLatencyResult: ${JSON.stringify(content)}`);
+        if (this.discoveryDelegate !== null) {
+          console.log('calling discoveryDelegate.discoveryResults');
+          this.discoveryDelegate.discoveryLatencyTestResults(content.results);
+        } else {
+          console.log('discoveryDelegate is not added');
+        }
         break;
       }
 
@@ -381,8 +408,7 @@ export default class SyncStage implements ISyncStage {
     if (errorCode === SyncStageSDKErrorCode.OK) {
       const [selectedServer, errorCode] = await this.getBestAvailableServer();
       if (errorCode === SyncStageSDKErrorCode.OK) {
-        console.log('Selected server:', selectedServer);
-        this.selectedServer = selectedServer;
+        this.handleServerSelection(selectedServer);
       }
     }
 
@@ -412,7 +438,8 @@ export default class SyncStage implements ISyncStage {
     return version;
   }
 
-  private async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
+  // Deprecated
+  async getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
     if (await this.isJwtExpired()) {
       return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
     }
@@ -437,6 +464,16 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
+  async getSelectedServer(): Promise<[ISelectedServer | null, SyncStageSDKErrorCode]> {
+    return [this.selectedServer, SyncStageSDKErrorCode.OK];
+  }
+
+  async setSelectedServer(selectedServer: ISelectedServer): Promise<SyncStageSDKErrorCode> {
+    this.handleServerSelection(selectedServer);
+
+    return SyncStageSDKErrorCode.OK;
+  }
+
   async createSession(
     userId: string,
     zoneId?: string | null,
@@ -456,8 +493,7 @@ export default class SyncStage implements ISyncStage {
       if (!this.selectedServer) {
         const [selectedServer, errorCode] = await this.getBestAvailableServer();
         if (errorCode === SyncStageSDKErrorCode.OK) {
-          console.log('Selected server:', selectedServer);
-          this.selectedServer = selectedServer;
+          this.handleServerSelection(selectedServer);
         } else {
           return [null, SyncStageSDKErrorCode.NO_STUDIO_SERVER_AVAILABLE];
         }
@@ -502,8 +538,7 @@ export default class SyncStage implements ISyncStage {
       if (!this.selectedServer) {
         const [selectedServer, errorCode] = await this.getBestAvailableServer();
         if (errorCode === SyncStageSDKErrorCode.OK) {
-          console.log('Selected server:', selectedServer);
-          this.selectedServer = selectedServer;
+          this.handleServerSelection(selectedServer);
         } else {
           return [null, SyncStageSDKErrorCode.NO_STUDIO_SERVER_AVAILABLE];
         }
@@ -701,11 +736,13 @@ export {
   SyncStageSDKErrorCode,
   ISyncStageConnectivityDelegate,
   ISyncStageUserDelegate,
+  ISyncStageDiscoveryDelegate,
   ISyncStageDesktopAgentDelegate,
   IServerInstances,
   IServerInstance,
   ISessionIdentifier,
   ISession,
   IMeasurements,
+  IZoneLatency,
   ILatencyOptimizationLevel,
 };

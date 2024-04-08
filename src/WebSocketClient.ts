@@ -126,7 +126,7 @@ export default class {
         const elapsedTime = currentTime - this.reconnectingTimestamp;
         if (elapsedTime > 8000) {
           // 5 seconds
-          console.log('Reconnecting for more than 5 seconds, rerun sarus.reconnect().');
+          console.log('Reconnecting for more than 8 seconds, rerun sarus.reconnect().');
           this.sarus.reconnect();
           this.reconnectingTimestamp = currentTime;
         }
