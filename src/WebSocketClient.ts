@@ -83,11 +83,10 @@ export default class {
         close: [this.onClose],
         error: [this.onError],
       },
-      storageType: 'session',
-      retryProcessTimePeriod: 25,
-      storageKey: 'messageQueue',
       reconnectAutomatically: true,
-      retryConnectionDelay: 3000,
+      retryConnectionDelay: 5000,
+      storageType: 'memory',
+      retryProcessTimePeriod: 100,
     });
 
     this.isOnlineInterval = setInterval(async () => {
@@ -108,8 +107,9 @@ export default class {
       const elapsedTime = currentTime - this.lastTimeActive;
 
       if (elapsedTime > 2 * 5000) {
-        // 5 seconds for example
+        // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
+        this.reconnectingTimestamp = null;
         if (!this.reconnecting) {
           this.reconnecting = true;
           this.reconnectingTimestamp = Date.now();
@@ -124,9 +124,9 @@ export default class {
       if (this.reconnecting && this.reconnectingTimestamp !== null) {
         const currentTime = Date.now();
         const elapsedTime = currentTime - this.reconnectingTimestamp;
-        if (elapsedTime > 5000) {
+        if (elapsedTime > 8000) {
           // 5 seconds
-          console.log('Reconnecting for more than 5 seconds, rerun sarus.reconnect().');
+          console.log('Reconnecting for more than 8 seconds, rerun sarus.reconnect().');
           this.sarus.reconnect();
           this.reconnectingTimestamp = currentTime;
         }
@@ -172,9 +172,12 @@ export default class {
   }
 
   private async onOpen() {
+    this.sarus.messages = [];
     this.reconnecting = false;
+    this.reconnectingTimestamp = null;
     console.log(`Connected WebSocket to server`);
 
+    this.onDesktopAgentAquiredStatus(false);
     await this.onWebsocketReconnected();
 
     this.lastPongReceivedDate = null;
@@ -196,7 +199,7 @@ export default class {
           );
           this.isDesktopAgentConnected = false;
           console.log('calling desktopAgentDelegate.desktopAgentLostConnection');
-          this.desktopAgentDelegate?.desktopAgentLostConnection();
+          this.desktopAgentDelegate?.desktopAgentDisconnected();
         }
       }, PING_INTERVAL_MS);
     }
@@ -210,14 +213,12 @@ export default class {
       const { msgId, type, content } = data;
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
-        this.desktopAgentDelegate?.desktopAgentConnectionKeepAlive();
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }
-
       if (this.requests.has(msgId)) {
         if (type !== SyncStageMessageType.Pong) {
           console.log(`Websocket received: ${event.data}`);
@@ -237,6 +238,7 @@ export default class {
 
   private async onClose() {
     console.log('Disconnected from WebSocket server.');
+    this.sarus.messages = [];
   }
 
   private async onError(error: Event) {

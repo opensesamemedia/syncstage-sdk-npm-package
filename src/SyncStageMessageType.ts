@@ -51,4 +51,5 @@ export enum SyncStageMessageType {
   IsDesktopAgentConnected = 'IsDesktopAgentConnected',
   DesktopAgentConnected = 'DesktopAgentConnected',
   DesktopAgentDisconnected = 'DesktopAgentDisconnected',
+  TabClosed = 'TabClosed',
 }
