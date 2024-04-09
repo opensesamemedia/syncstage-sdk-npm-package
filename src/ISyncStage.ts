@@ -5,7 +5,6 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
-import { ISelectedServer } from './models/ISelectedServer';
 
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -37,7 +36,7 @@ export default interface ISyncStage {
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]>;
   getDesktopAgentProtocolHandler(): string;
-  getSelectedServer(): Promise<[ISelectedServer | null, SyncStageSDKErrorCode]>;
+  getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
 
   // Deprecated
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;

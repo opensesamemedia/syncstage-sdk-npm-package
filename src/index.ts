@@ -14,11 +14,9 @@ import { version } from './version';
 import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
-import { ISelectedServer } from './models/ISelectedServer';
 import { IZoneLatency } from './models/IZoneLatency';
 
-// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -38,7 +36,7 @@ export default class SyncStage implements ISyncStage {
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
 
-  private selectedServer: ISelectedServer | null = null;
+  private selectedServer: IServerInstance | null = null;
 
   constructor(
     userDelegate: ISyncStageUserDelegate | null,
@@ -464,11 +462,11 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  async getSelectedServer(): Promise<[ISelectedServer | null, SyncStageSDKErrorCode]> {
+  async getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]> {
     return [this.selectedServer, SyncStageSDKErrorCode.OK];
   }
 
-  async setSelectedServer(selectedServer: ISelectedServer): Promise<SyncStageSDKErrorCode> {
+  async setSelectedServer(selectedServer: IServerInstance): Promise<SyncStageSDKErrorCode> {
     this.handleServerSelection(selectedServer);
 
     return SyncStageSDKErrorCode.OK;
