@@ -16,6 +16,14 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { IZoneLatency } from './models/IZoneLatency';
 
+const originalConsoleLog = console.log;
+
+console.log = function () {
+  const args = Array.prototype.slice.call(arguments);
+  args.unshift(new Date().toISOString());
+  originalConsoleLog.apply(console, args);
+};
+
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 
 export default class SyncStage implements ISyncStage {
