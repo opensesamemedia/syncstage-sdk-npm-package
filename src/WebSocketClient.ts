@@ -109,11 +109,9 @@ export default class {
       if (elapsedTime > 2 * 5000) {
         // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
-        this.reconnectingTimestamp = null;
+
         if (!this.reconnecting) {
-          this.reconnecting = true;
-          this.reconnectingTimestamp = Date.now();
-          this.sarus.reconnect();
+          this.reconnect();
         }
       }
 
@@ -127,11 +125,8 @@ export default class {
         if (elapsedTime > 8000) {
           // 5 seconds
           console.log('Reconnecting for more than 8 seconds, rerun sarus.reconnect().');
-          this.sarus.reconnect();
-          this.reconnectingTimestamp = currentTime;
+          this.reconnect();
         }
-      } else {
-        this.reconnectingTimestamp = Date.now();
       }
     }, 1000); // check every second
 
@@ -149,14 +144,19 @@ export default class {
         if (hiddenDuration > 5 * 60 * 1000) {
           console.log('The tab was hidden for more than 5 minutes, restart the WebSocket connection.');
           if (!this.reconnecting) {
-            this.reconnecting = true;
-            this.reconnectingTimestamp = Date.now();
-            this.sarus.reconnect();
+            this.reconnect();
           }
         }
       }
       this.visibilityChangeTimestamp = null;
     }
+  }
+
+  private reconnect() {
+    this.sarus.messages = [];
+    this.reconnecting = true;
+    this.reconnectingTimestamp = Date.now();
+    this.sarus.reconnect();
   }
 
   public updateOnWebsocketReconnected(onWebsocketReconnected: () => void) {
@@ -232,7 +232,9 @@ export default class {
         this.onDelegateMessage(type, content);
       }
     } catch (error) {
-      console.log(`Could not parse websocket message  ${event.data} : ${error}`);
+      if (event.data !== '') {
+        console.log(`Could not parse websocket message  ${event.data} : ${error}`);
+      }
     }
   }
 

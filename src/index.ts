@@ -249,10 +249,6 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.DesktopAgentConnected: {
         console.log('calling desktopAgentDelegate.desktopAgentConnected');
         this.desktopAgentDelegate?.desktopAgentConnected();
-        if (this.jwt) {
-          this.updateToken(this.jwt);
-        }
-
         break;
       }
 
