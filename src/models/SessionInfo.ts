@@ -6,7 +6,8 @@ import { Session } from './Session';
 export default class SessionInfo implements ISessionInfo {
   constructor(
     public sessionId: string,
-    public sessionCode: string | null = null,
+    public sessionCode: string = '',
+    public sessionName: string = '',
     public sessionStatus: string,
     public serverIsReady: boolean,
     public websocketUrl: string,
@@ -23,11 +24,12 @@ export default class SessionInfo implements ISessionInfo {
     return new Session(
       this.sessionId,
       this.sessionCode,
+      this.sessionName,
       this.createdAt,
       this.updatedAt,
       transmitter,
       receivers,
-      this.recordingStatus == 'started',
+      this.recordingStatus,
     );
   }
 }
