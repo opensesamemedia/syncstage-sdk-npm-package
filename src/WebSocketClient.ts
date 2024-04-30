@@ -32,6 +32,7 @@ export default class {
   private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
   private onOnline: () => void;
   private onOffline: () => void;
+  private onProvisionedState: (state: boolean) => void;
   private isDesktopAgentConnected = false;
   private pingInterval: any = null;
   private pingCheckInterval: any = null;
@@ -40,29 +41,29 @@ export default class {
   private watchdogInterval: any = null;
   private lastTimeActive = Date.now();
   private desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
-
   private reconnectingTimestamp: number | null = null;
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
-  private onWebsocketReconnected: () => void;
+
   private online: boolean | null = null;
   private reconnecting = false;
   private visibilityChangeTimestamp: number | null = null;
 
+  private onWebsocketReconnected: (() => void) | null = null;
+
   constructor(
     syncStageObjectId: string,
     onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
-    onWebsocketReconnected: () => void,
     onDesktopAgentAquiredStatus: (aquired: boolean) => void,
     onOffline: () => void,
     onOnline: () => void,
+    onProvisionState: (provisioned: boolean) => void,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null = null,
   ) {
     this.syncStageObjectId = syncStageObjectId;
     this.onDelegateMessage = onDelegateMessage;
-
+    this.onProvisionedState = onProvisionState;
     this.requests = new Map();
-    this.onWebsocketReconnected = onWebsocketReconnected;
     this.onDesktopAgentAquiredStatus = onDesktopAgentAquiredStatus;
     this.onOnline = onOnline;
     this.onOffline = onOffline;
@@ -159,18 +160,14 @@ export default class {
     if (this.sarus) {
       this.sarus.messages = [];
     }
-
     this.reconnecting = true;
     this.reconnectingTimestamp = Date.now();
     this.sarus?.reconnect();
   }
 
-  public updateOnWebsocketReconnected(onWebsocketReconnected: () => void) {
-    if (onWebsocketReconnected) {
-      this.onWebsocketReconnected = onWebsocketReconnected;
-    } else {
-      this.onWebsocketReconnected = () => {};
-    }
+  public updateOnWebsocketReconnected(onWebsocketReconnected: (() => void) | null) {
+    console.log('updateOnWebsocketReconnected in WebsocketClient.ts', onWebsocketReconnected);
+    this.onWebsocketReconnected = onWebsocketReconnected;
   }
 
   private createWebsocketURI(): string {
@@ -186,12 +183,20 @@ export default class {
     console.log(`Connected WebSocket to server`);
 
     this.onDesktopAgentAquiredStatus(false);
-    await this.onWebsocketReconnected();
+
+    console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
+    await this.onWebsocketReconnected?.();
+
+    if (!this.onWebsocketReconnected) {
+      console.log('onWebsocketReconnected is null in WebsocketClient.ts');
+    }
 
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
     if (!this.pingInterval) {
+      await this.sendMessage(SyncStageMessageType.Ping, {});
+
       this.pingInterval = setInterval(async () => {
         await this.sendMessage(SyncStageMessageType.Ping, {});
       }, PING_INTERVAL_MS);
@@ -221,9 +226,15 @@ export default class {
       const { msgId, type, content } = data;
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
+        if (!this.isDesktopAgentConnected) {
+          console.log('detected DesktopAgentConnected changed to true');
+          console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
+          this.onWebsocketReconnected?.();
+        }
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
+        this.onProvisionedState(content.isProvisioned);
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }

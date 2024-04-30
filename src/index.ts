@@ -15,6 +15,7 @@ import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { IZoneLatency } from './models/IZoneLatency';
+import { compatibilityMatrix } from './compatibility-matrix';
 
 const originalConsoleLog = console.log;
 
@@ -24,6 +25,7 @@ console.log = function () {
   originalConsoleLog.apply(console, args);
 };
 
+const COMPATIBILITY_MATRIX_ADDRESS = 'https://public.sync-stage.com/agent/compatibility-matrix.json';
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 
 export default class SyncStage implements ISyncStage {
@@ -35,6 +37,7 @@ export default class SyncStage implements ISyncStage {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
 
   private ws: WebSocketClient;
+  private isProvisioned = false;
   private jwt: string | null = null;
   private baseWssAddress: string;
   private wsAddressForDesktopAgent = '';
@@ -44,7 +47,6 @@ export default class SyncStage implements ISyncStage {
   // eslint-disable-next-line max-len
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
-
   private selectedServer: IServerInstance | null = null;
 
   constructor(
@@ -82,6 +84,21 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
+    const onProvisionedState = async (isProvisioned: boolean) => {
+      if (!isProvisioned && this.isProvisioned) {
+        console.log('desktopAgentDelegate before onDesktopAgentRelaunched', this.desktopAgentDelegate);
+        this.desktopAgentDelegate?.onDesktopAgentRelaunched();
+      }
+
+      this.isProvisioned = isProvisioned;
+      if (!this.isProvisioned) {
+        const errorCode = await this.sendProvision();
+        if (errorCode === SyncStageSDKErrorCode.OK) {
+          console.log('Auto-provisioned successfully');
+        }
+      }
+    };
+
     const setAllConnectionsStatusToOffline = () => {
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       const self = this;
@@ -100,11 +117,11 @@ export default class SyncStage implements ISyncStage {
     this.ws = new WebSocketClient(
       this.syncStageObjectId,
       this.onDelegateMessage,
-      this.onWebsocketReconnected,
       onDesktopAgentAquiredStatus,
       setAllConnectionsStatusToOffline,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => {},
+      onProvisionedState,
       this.desktopAgentDelegate,
     );
 
@@ -114,6 +131,43 @@ export default class SyncStage implements ISyncStage {
   private async initUrls() {
     [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = await this.generateWebSocketURLS();
     this.ws.connect(this.wsAddressForSDK);
+  }
+
+  async isCompatible(os: string): Promise<boolean> {
+    const requestType = SyncStageMessageType.VersionRequest;
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+
+    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
+      console.log('Error fetching compatibility matrix');
+      return false;
+    }
+
+    let matrix;
+    try {
+      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      matrix = await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
+      matrix = JSON.parse(compatibilityMatrix);
+    }
+
+    console.log('Compatibility matrix:', matrix);
+
+    console.log('Current Web SDK version:', version);
+    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
+    console.log('Current OS:', os);
+
+    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
+    console.log(`Compatible versions length ${compatibleVersions.length}:`, compatibleVersions);
+
+    if (compatibleVersions.length === 0) {
+      console.log('No compatible versions found');
+      return false;
+    }
+
+    const compatible = compatibleVersions.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
+    console.log('Compatible:', compatible);
+    return compatible;
   }
 
   private handleServerSelection(selectedServer: any): void {
@@ -129,7 +183,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
+    console.log('updateOnWebsocketReconnected in SDK index.ts');
     this.onWebsocketReconnected = onWebsocketReconnected;
+    this.onWebsocketReconnected = this.onWebsocketReconnected.bind(this);
     this.ws.updateOnWebsocketReconnected(this.onWebsocketReconnected);
   }
 
@@ -389,28 +445,42 @@ export default class SyncStage implements ISyncStage {
       }
       return expired;
     } else {
-      console.log('No JWT provided, treating as expired.');
+      console.log('No JWT provided.');
       return true;
     }
   }
   // #endregion
 
-  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
-    this.jwt = jwt;
-
+  private async sendProvision(): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
+
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {
-      token: jwt,
+      token: this.jwt,
     });
 
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
-
     if (errorCode === SyncStageSDKErrorCode.OK) {
+      this.isProvisioned = true;
+    }
+    return errorCode;
+  }
+
+  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+
+    let errorCode;
+    if (!this.isProvisioned) {
+      errorCode = await this.sendProvision();
+    } else {
+      errorCode = SyncStageSDKErrorCode.OK;
+    }
+
+    if (errorCode === SyncStageSDKErrorCode.OK && !this.selectedServer) {
       const [selectedServer, errorCode] = await this.getBestAvailableServer();
       if (errorCode === SyncStageSDKErrorCode.OK) {
         this.handleServerSelection(selectedServer);
@@ -420,9 +490,7 @@ export default class SyncStage implements ISyncStage {
     return errorCode;
   }
 
-  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
-    this.jwt = jwt;
-
+  private async sendUpdate(): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
@@ -430,9 +498,14 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {
-      token: jwt,
+      token: this.jwt,
     });
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+    return await this.sendUpdate();
   }
 
   public isDesktopAgentConnected(): boolean {
@@ -708,7 +781,7 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  public async getDesktopAgentProtocolHandler(): Promise<string> {
+  async getDesktopAgentProtocolHandler(): Promise<string> {
     while (this.wsAddressForDesktopAgent === '') {
       await new Promise((resolve) => setTimeout(resolve, 10));
     }
@@ -716,6 +789,9 @@ export default class SyncStage implements ISyncStage {
     return `syncstageagent://${encodedWssAddress}`;
   }
 
+  public async checkProvisionedStatus(): Promise<boolean> {
+    return this.isProvisioned;
+  }
   // IndexedDB helper functions
   private openDB = (name: string, version: number, onUpgradeNeeded: (request: IDBOpenDBRequest) => void) => {
     return new Promise<IDBDatabase>((resolve, reject) => {

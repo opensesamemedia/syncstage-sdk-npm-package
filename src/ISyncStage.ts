@@ -9,6 +9,7 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
+  isCompatible(currentOs: string): Promise<boolean>;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
   isDesktopAgentConnected(): boolean;
@@ -37,7 +38,7 @@ export default interface ISyncStage {
   getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]>;
   getDesktopAgentProtocolHandler(): Promise<string>;
   getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
-
+  checkProvisionedStatus(): Promise<boolean>;
   // Deprecated
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
 }

@@ -20,4 +20,5 @@ export enum RequestResponseMap {
   StartRecordingRequest = SyncStageMessageType.StartRecordingResponse,
   StopRecordingRequest = SyncStageMessageType.StopRecordingResponse,
   UpdateTokenRequest = SyncStageMessageType.UpdateTokenResponse,
+  VersionRequest = SyncStageMessageType.VersionResponse,
 }
