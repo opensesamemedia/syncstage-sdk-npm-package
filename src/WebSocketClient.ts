@@ -234,7 +234,11 @@ export default class {
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
-        this.onProvisionedState(content.isProvisioned);
+
+        if (type === SyncStageMessageType.Pong) {
+          console.log(`Received Pong from Desktop Agent. content.isProvisioned: ${content.isProvisioned}`);
+          this.onProvisionedState(content.isProvisioned);
+        }
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }

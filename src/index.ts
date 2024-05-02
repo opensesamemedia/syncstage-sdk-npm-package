@@ -84,21 +84,6 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    const onProvisionedState = async (isProvisioned: boolean) => {
-      if (!isProvisioned && this.isProvisioned) {
-        console.log('desktopAgentDelegate before onDesktopAgentRelaunched', this.desktopAgentDelegate);
-        this.desktopAgentDelegate?.onDesktopAgentRelaunched();
-      }
-
-      this.isProvisioned = isProvisioned;
-      if (!this.isProvisioned) {
-        const errorCode = await this.sendProvision();
-        if (errorCode === SyncStageSDKErrorCode.OK) {
-          console.log('Auto-provisioned successfully');
-        }
-      }
-    };
-
     const setAllConnectionsStatusToOffline = () => {
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       const self = this;
@@ -111,8 +96,10 @@ export default class SyncStage implements ISyncStage {
       );
     };
 
-    // Bind onDelegateMessage to this
+    // Binds to this
     this.onDelegateMessage = this.onDelegateMessage.bind(this);
+    this.onProvisionedState = this.onProvisionedState.bind(this);
+    this.sendProvision = this.sendProvision.bind(this);
 
     this.ws = new WebSocketClient(
       this.syncStageObjectId,
@@ -121,7 +108,7 @@ export default class SyncStage implements ISyncStage {
       setAllConnectionsStatusToOffline,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => {},
-      onProvisionedState,
+      this.onProvisionedState,
       this.desktopAgentDelegate,
     );
 
@@ -190,6 +177,27 @@ export default class SyncStage implements ISyncStage {
   }
 
   // #region Private methods
+
+  private onProvisionedState = async (isProvisioned: boolean) => {
+    if (!isProvisioned && this.isProvisioned) {
+      console.log('desktopAgentDelegate before onDesktopAgentRelaunched', this.desktopAgentDelegate);
+      this.desktopAgentDelegate?.onDesktopAgentRelaunched();
+    }
+
+    this.isProvisioned = isProvisioned;
+    if (!this.isProvisioned) {
+      const errorCode = await this.sendProvision();
+      if (errorCode === SyncStageSDKErrorCode.OK) {
+        console.log('Auto-provisioned successfully');
+      }
+    }
+
+    if (this.isProvisioned) {
+      console.log('onDesktopAgentProvisioned');
+      this.desktopAgentDelegate?.onDesktopAgentProvisioned();
+    }
+  };
+
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
     console.log(`SDK index.js Received message ${responseType} with content: ${JSON.stringify(content)}`);
     switch (responseType) {
@@ -466,6 +474,8 @@ export default class SyncStage implements ISyncStage {
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
     if (errorCode === SyncStageSDKErrorCode.OK) {
       this.isProvisioned = true;
+      console.log('onDesktopAgentProvisioned');
+      this.desktopAgentDelegate?.onDesktopAgentProvisioned();
     }
     return errorCode;
   }
@@ -780,6 +790,7 @@ export default class SyncStage implements ISyncStage {
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
+  declare indexedDB: any; // Add this line to declare the indexedDB object
 
   async getDesktopAgentProtocolHandler(): Promise<string> {
     while (this.wsAddressForDesktopAgent === '') {
@@ -790,6 +801,9 @@ export default class SyncStage implements ISyncStage {
   }
 
   public async checkProvisionedStatus(): Promise<boolean> {
+    console.log(`SDK index checkProvisionedStatus ${this.isProvisioned}`);
+    console.log(`checkProvisionedStatus 'this' is an instance of: ${this.constructor.name}`);
+
     return this.isProvisioned;
   }
   // IndexedDB helper functions
