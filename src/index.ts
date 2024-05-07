@@ -562,6 +562,37 @@ export default class SyncStage implements ISyncStage {
     return compatible;
   }
 
+  async getLatestCompatibleDesktopAgentVersion(os: string): Promise<string | null> {
+    const requestType = SyncStageMessageType.VersionRequest;
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+
+    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
+      console.log('Error fetching compatibility matrix');
+      return null;
+    }
+
+    let matrix;
+    try {
+      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      matrix = await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
+      matrix = JSON.parse(compatibilityMatrix);
+    }
+
+    console.log('Compatibility matrix:', matrix);
+
+    console.log('Current Web SDK version:', version);
+    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
+    console.log('Current OS:', os);
+
+    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
+    // return last string from the compatible versions array
+    if (compatibleVersions.length > 0) {
+      return compatibleVersions.compatibleDesktopAgentVersions[os].slice(-1)[0];
+    } else return null;
+  }
+
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
     this.jwt = jwt;
     return await this.sendUpdate();
