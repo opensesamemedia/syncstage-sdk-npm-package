@@ -221,6 +221,9 @@ export default class {
       }
 
       if (this.requests.has(msgId)) {
+        if (type === SyncStageMessageType.Incompatible) {
+          console.log('Requested method is not compatible with the current version of the Desktop Agent.');
+        }
         const { resolve } = this.requests.get(msgId) as IPendingRequest;
         resolve(data);
         this.requests.delete(msgId);

@@ -54,4 +54,5 @@ export enum SyncStageMessageType {
   TabClosed = 'TabClosed',
   VersionRequest = 'VersionRequest',
   VersionResponse = 'VersionResponse',
+  Incompatible = 'Incompatible',
 }
