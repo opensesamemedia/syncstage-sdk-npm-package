@@ -12,7 +12,7 @@ export default interface ISyncStage {
   isCompatible(currentOs: string): Promise<boolean>;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
-  updateOnDesktopAgentReconnected(onWebsocketReconnected: () => void): void;
+  updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
   getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;

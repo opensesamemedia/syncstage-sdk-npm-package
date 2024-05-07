@@ -575,8 +575,8 @@ export default class SyncStage implements ISyncStage {
     return version;
   }
 
-  updateOnDesktopAgentReconnected(onWebsocketReconnected: () => void): void {
-    this.onDesktopAgentReconnected = onWebsocketReconnected;
+  updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
+    this.onDesktopAgentReconnected = onDesktopAgentReconnected;
     this.onDesktopAgentReconnected = this.onDesktopAgentReconnected.bind(this);
     this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
   }
