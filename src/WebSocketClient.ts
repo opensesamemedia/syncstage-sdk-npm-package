@@ -137,25 +137,6 @@ export default class {
     });
   }
 
-  // private handleVisibilityChange() {
-  //   if (document.hidden) {
-  //     // The tab has just been hidden, record the current time
-  //     this.visibilityChangeTimestamp = Date.now();
-  //   } else {
-  //     // The tab has just been shown, check how long it was hidden
-  //     if (this.visibilityChangeTimestamp !== null) {
-  //       const hiddenDuration = Date.now() - this.visibilityChangeTimestamp;
-  //       if (hiddenDuration > 5 * 60 * 1000) {
-  //         console.log('The tab was hidden for more than 5 minutes, restart the WebSocket connection.');
-  //         if (!this.reconnecting) {
-  //           this.reconnect();
-  //         }
-  //       }
-  //     }
-  //     this.visibilityChangeTimestamp = null;
-  //   }
-  // }
-
   private reconnect() {
     if (this.sarus) {
       this.sarus.messages = [];
@@ -166,7 +147,6 @@ export default class {
   }
 
   public updateOnWebsocketReconnected(onWebsocketReconnected: (() => void) | null) {
-    console.log('updateOnWebsocketReconnected in WebsocketClient.ts', onWebsocketReconnected);
     this.onWebsocketReconnected = onWebsocketReconnected;
   }
 
@@ -184,12 +164,7 @@ export default class {
 
     this.onDesktopAgentAquiredStatus(false);
 
-    console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
     await this.onWebsocketReconnected?.();
-
-    if (!this.onWebsocketReconnected) {
-      console.log('onWebsocketReconnected is null in WebsocketClient.ts');
-    }
 
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
@@ -228,7 +203,6 @@ export default class {
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
         if (!this.isDesktopAgentConnected) {
           console.log('detected DesktopAgentConnected changed to true');
-          console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
           this.onWebsocketReconnected?.();
         }
         this.isDesktopAgentConnected = true;
@@ -236,17 +210,17 @@ export default class {
         this.onDesktopAgentAquiredStatus(false);
 
         if (type === SyncStageMessageType.Pong) {
-          console.log(`Received Pong from Desktop Agent. content.isProvisioned: ${content.isProvisioned}`);
           this.onProvisionedState(content.isProvisioned);
         }
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }
-      if (this.requests.has(msgId)) {
-        if (type !== SyncStageMessageType.Pong) {
-          console.log(`Websocket received: ${event.data}`);
-        }
 
+      if (type !== SyncStageMessageType.Pong) {
+        console.log(`Websocket received: ${event.data}`);
+      }
+
+      if (this.requests.has(msgId)) {
         const { resolve } = this.requests.get(msgId) as IPendingRequest;
         resolve(data);
         this.requests.delete(msgId);

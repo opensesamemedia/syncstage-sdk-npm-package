@@ -12,6 +12,7 @@ export default interface ISyncStage {
   isCompatible(currentOs: string): Promise<boolean>;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
+  updateOnDesktopAgentReconnected(onWebsocketReconnected: () => void): void;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
   getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;
@@ -39,6 +40,5 @@ export default interface ISyncStage {
   getDesktopAgentProtocolHandler(): Promise<string>;
   getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   checkProvisionedStatus(): Promise<boolean>;
-  // Deprecated
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
 }
