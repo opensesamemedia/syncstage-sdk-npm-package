@@ -10,7 +10,7 @@ export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
   isCompatible(currentOs: string): Promise<boolean>;
-  getLatestCompatibleDesktopAgentVersion(os: string): Promise<string | null>;
+  getLatestCompatibleDesktopAgentVersion(currentOs: string): Promise<string | null>;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void;
