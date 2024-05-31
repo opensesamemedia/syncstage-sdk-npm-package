@@ -52,4 +52,7 @@ export enum SyncStageMessageType {
   DesktopAgentConnected = 'DesktopAgentConnected',
   DesktopAgentDisconnected = 'DesktopAgentDisconnected',
   TabClosed = 'TabClosed',
+  VersionRequest = 'VersionRequest',
+  VersionResponse = 'VersionResponse',
+  Incompatible = 'Incompatible',
 }

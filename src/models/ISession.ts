@@ -6,12 +6,13 @@ export interface ISessionIdentifier {
 
 export interface ISession {
   sessionId: string;
-  sessionCode: string | null;
+  sessionCode: string;
+  sessionName: string;
   createdAt: string;
   updatedAt: string;
   transmitter?: IConnection | null;
   receivers: Array<IConnection>;
-  isRecording: boolean;
+  recordingStatus: string;
 }
 
 export interface IConnection {

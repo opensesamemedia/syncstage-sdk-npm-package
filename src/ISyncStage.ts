@@ -9,8 +9,11 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
   userDelegate: ISyncStageUserDelegate | null;
+  isCompatible(currentOs: string): Promise<boolean>;
+  getLatestCompatibleDesktopAgentVersion(currentOs: string): Promise<string | null>;
   init(jwt: string): Promise<SyncStageSDKErrorCode>;
   updateToken(jwt: string): Promise<SyncStageSDKErrorCode>;
+  updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void;
   isDesktopAgentConnected(): boolean;
   getSDKVersion(): string;
   getServerInstances(): Promise<[IServerInstances | null, SyncStageSDKErrorCode]>;
@@ -35,9 +38,8 @@ export default interface ISyncStage {
   getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]>;
-  getDesktopAgentProtocolHandler(): string;
+  getDesktopAgentProtocolHandler(): Promise<string>;
   getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
-
-  // Deprecated
+  checkProvisionedStatus(): Promise<boolean>;
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
 }
