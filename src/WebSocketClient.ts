@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { v4 as uuidv4 } from 'uuid';
 import isOnline from 'is-online';
 import Sarus from '@anephenix/sarus';
@@ -24,13 +25,14 @@ interface IPendingRequest {
 
 export default class {
   private syncStageObjectId: string;
-  private url: string;
-  private sarus: Sarus;
+  private url = '';
+  private sarus: Sarus | null = null;
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
   private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
   private onOnline: () => void;
   private onOffline: () => void;
+  private onProvisionedState: (state: boolean) => void;
   private isDesktopAgentConnected = false;
   private pingInterval: any = null;
   private pingCheckInterval: any = null;
@@ -39,31 +41,29 @@ export default class {
   private watchdogInterval: any = null;
   private lastTimeActive = Date.now();
   private desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
-
   private reconnectingTimestamp: number | null = null;
   private lastPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
-  private onWebsocketReconnected: () => void;
+
   private online: boolean | null = null;
   private reconnecting = false;
   private visibilityChangeTimestamp: number | null = null;
 
+  private onWebsocketReconnected: (() => void) | null = null;
+
   constructor(
     syncStageObjectId: string,
-    url: string,
     onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void,
-    onWebsocketReconnected: () => void,
     onDesktopAgentAquiredStatus: (aquired: boolean) => void,
     onOffline: () => void,
     onOnline: () => void,
+    onProvisionState: (provisioned: boolean) => void,
     desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null = null,
   ) {
     this.syncStageObjectId = syncStageObjectId;
-    this.url = url;
     this.onDelegateMessage = onDelegateMessage;
-
+    this.onProvisionedState = onProvisionState;
     this.requests = new Map();
-    this.onWebsocketReconnected = onWebsocketReconnected;
     this.onDesktopAgentAquiredStatus = onDesktopAgentAquiredStatus;
     this.onOnline = onOnline;
     this.onOffline = onOffline;
@@ -74,20 +74,6 @@ export default class {
     this.onClose = this.onClose.bind(this);
     this.onError = this.onError.bind(this);
     this.onDesktopAgentAquiredStatus = this.onDesktopAgentAquiredStatus.bind(this);
-
-    this.sarus = new Sarus({
-      url: this.createWebsocketURI(),
-      eventListeners: {
-        open: [this.onOpen],
-        message: [this.onMessage],
-        close: [this.onClose],
-        error: [this.onError],
-      },
-      reconnectAutomatically: true,
-      retryConnectionDelay: 5000,
-      storageType: 'memory',
-      retryProcessTimePeriod: 100,
-    });
 
     this.isOnlineInterval = setInterval(async () => {
       const online = await isOnline();
@@ -109,11 +95,9 @@ export default class {
       if (elapsedTime > 2 * 5000) {
         // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
-        this.reconnectingTimestamp = null;
+
         if (!this.reconnecting) {
-          this.reconnecting = true;
-          this.reconnectingTimestamp = Date.now();
-          this.sarus.reconnect();
+          this.reconnect();
         }
       }
 
@@ -126,45 +110,64 @@ export default class {
         const elapsedTime = currentTime - this.reconnectingTimestamp;
         if (elapsedTime > 8000) {
           // 5 seconds
-          console.log('Reconnecting for more than 8 seconds, rerun sarus.reconnect().');
-          this.sarus.reconnect();
-          this.reconnectingTimestamp = currentTime;
+          console.log('Re connecting for more than 8 seconds, rerun sarus.reconnect().');
+          this.reconnect();
         }
-      } else {
-        this.reconnectingTimestamp = Date.now();
       }
     }, 1000); // check every second
 
-    document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
+    // document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
   }
 
-  private handleVisibilityChange() {
-    if (document.hidden) {
-      // The tab has just been hidden, record the current time
-      this.visibilityChangeTimestamp = Date.now();
-    } else {
-      // The tab has just been shown, check how long it was hidden
-      if (this.visibilityChangeTimestamp !== null) {
-        const hiddenDuration = Date.now() - this.visibilityChangeTimestamp;
-        if (hiddenDuration > 5 * 60 * 1000) {
-          console.log('The tab was hidden for more than 5 minutes, restart the WebSocket connection.');
-          if (!this.reconnecting) {
-            this.reconnecting = true;
-            this.reconnectingTimestamp = Date.now();
-            this.sarus.reconnect();
-          }
-        }
-      }
-      this.visibilityChangeTimestamp = null;
-    }
+  connect(url: string) {
+    this.url = url;
+
+    this.sarus = new Sarus({
+      url: this.createWebsocketURI(),
+      eventListeners: {
+        open: [this.onOpen],
+        message: [this.onMessage],
+        close: [this.onClose],
+        error: [this.onError],
+      },
+      reconnectAutomatically: true,
+      retryConnectionDelay: 5000,
+      storageType: 'memory',
+      retryProcessTimePeriod: 100,
+    });
   }
 
-  public updateOnWebsocketReconnected(onWebsocketReconnected: () => void) {
-    if (onWebsocketReconnected) {
-      this.onWebsocketReconnected = onWebsocketReconnected;
-    } else {
-      this.onWebsocketReconnected = () => {};
+  // private handleVisibilityChange() {
+  //   if (document.hidden) {
+  //     // The tab has just been hidden, record the current time
+  //     this.visibilityChangeTimestamp = Date.now();
+  //   } else {
+  //     // The tab has just been shown, check how long it was hidden
+  //     if (this.visibilityChangeTimestamp !== null) {
+  //       const hiddenDuration = Date.now() - this.visibilityChangeTimestamp;
+  //       if (hiddenDuration > 5 * 60 * 1000) {
+  //         console.log('The tab was hidden for more than 5 minutes, restart the WebSocket connection.');
+  //         if (!this.reconnecting) {
+  //           this.reconnect();
+  //         }
+  //       }
+  //     }
+  //     this.visibilityChangeTimestamp = null;
+  //   }
+  // }
+
+  private reconnect() {
+    if (this.sarus) {
+      this.sarus.messages = [];
     }
+    this.reconnecting = true;
+    this.reconnectingTimestamp = Date.now();
+    this.sarus?.reconnect();
+  }
+
+  public updateOnWebsocketReconnected(onWebsocketReconnected: (() => void) | null) {
+    console.log('updateOnWebsocketReconnected in WebsocketClient.ts', onWebsocketReconnected);
+    this.onWebsocketReconnected = onWebsocketReconnected;
   }
 
   private createWebsocketURI(): string {
@@ -172,18 +175,28 @@ export default class {
   }
 
   private async onOpen() {
-    this.sarus.messages = [];
+    if (this.sarus) {
+      this.sarus.messages = [];
+    }
     this.reconnecting = false;
     this.reconnectingTimestamp = null;
     console.log(`Connected WebSocket to server`);
 
     this.onDesktopAgentAquiredStatus(false);
-    await this.onWebsocketReconnected();
+
+    console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
+    await this.onWebsocketReconnected?.();
+
+    if (!this.onWebsocketReconnected) {
+      console.log('onWebsocketReconnected is null in WebsocketClient.ts');
+    }
 
     this.lastPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
     if (!this.pingInterval) {
+      await this.sendMessage(SyncStageMessageType.Ping, {});
+
       this.pingInterval = setInterval(async () => {
         await this.sendMessage(SyncStageMessageType.Ping, {});
       }, PING_INTERVAL_MS);
@@ -213,9 +226,15 @@ export default class {
       const { msgId, type, content } = data;
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
+        if (!this.isDesktopAgentConnected) {
+          console.log('detected DesktopAgentConnected changed to true');
+          console.log('calling onWebsocketReconnected in WebsocketClient.ts', this.onWebsocketReconnected);
+          this.onWebsocketReconnected?.();
+        }
         this.isDesktopAgentConnected = true;
         this.lastPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
+        this.onProvisionedState(content.isProvisioned);
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
       }
@@ -232,13 +251,17 @@ export default class {
         this.onDelegateMessage(type, content);
       }
     } catch (error) {
-      console.log(`Could not parse websocket message  ${event.data} : ${error}`);
+      if (event.data !== '') {
+        console.log(`Could not parse websocket message  ${event.data} : ${error}`);
+      }
     }
   }
 
   private async onClose() {
     console.log('Disconnected from WebSocket server.');
-    this.sarus.messages = [];
+    if (this.sarus) {
+      this.sarus.messages = [];
+    }
   }
 
   private async onError(error: Event) {
@@ -280,9 +303,9 @@ export default class {
     }
     if (waitForResponse) {
       try {
-        this.sarus.send(strPayload);
+        this.sarus?.send(strPayload);
         const desktopAgentResponse: IWebsocketPayload = await new Promise((resolve, reject) => {
-          const timeout = window.setTimeout(() => {
+          const timeout = setTimeout(() => {
             this.requests.delete(msgId);
             reject(new Error(`Timeout: ${responseTimeout / 1000}s elapsed without a response for ${type}.`));
           }, responseTimeout);
@@ -302,7 +325,7 @@ export default class {
       }
     } else {
       try {
-        this.sarus.send(strPayload);
+        this.sarus?.send(strPayload);
       } catch (error) {
         console.log(`Could not send message ${msgId} to the Desktop Agent. Error: ${error}`);
         if (retries) {

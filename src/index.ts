@@ -15,7 +15,17 @@ import ISyncStageDiscoveryDelegate from './delegates/ISyncStageDiscoveryDelegate
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { IZoneLatency } from './models/IZoneLatency';
+import { compatibilityMatrix } from './compatibility-matrix';
 
+const originalConsoleLog = console.log;
+
+console.log = function () {
+  const args = Array.prototype.slice.call(arguments);
+  args.unshift(new Date().toISOString());
+  originalConsoleLog.apply(console, args);
+};
+
+const COMPATIBILITY_MATRIX_ADDRESS = 'https://public.sync-stage.com/agent/compatibility-matrix.json';
 const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 
 export default class SyncStage implements ISyncStage {
@@ -27,15 +37,16 @@ export default class SyncStage implements ISyncStage {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
 
   private ws: WebSocketClient;
+  private isProvisioned = false;
   private jwt: string | null = null;
   private baseWssAddress: string;
-  private wsAddressForDesktopAgent: string;
-  private wsAddressForSDK: string;
+  private wsAddressForDesktopAgent = '';
+  private wsAddressForSDK = '';
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onWebsocketReconnected: () => void = async () => {};
   // eslint-disable-next-line max-len
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
-
   private selectedServer: IServerInstance | null = null;
 
   constructor(
@@ -53,17 +64,38 @@ export default class SyncStage implements ISyncStage {
     this.desktopAgentDelegate = desktopAgentDelegate;
     this.onTokenExpired = onTokenExpired;
     this.baseWssAddress = baseWsAddress;
-    [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = this.generateWebSocketURLS();
+    this.initUrls();
 
-    const onDelegateMessage = (responseType: SyncStageMessageType, content: any): void => {
-      this.onDelegateMessage(responseType, content);
-    };
+    console.log(
+      // eslint-disable-next-line max-len
+      `SDK OBJECT IN CONSTRUCTOR: userDelegate: ${this.userDelegate}, connectivityDelegate: ${this.connectivityDelegate}, discoveryDelegate: ${this.discoveryDelegate} , desktopAgentDelegate: ${this.desktopAgentDelegate}, onTokenExpired: ${this.onTokenExpired}`,
+    );
+    console.log(this.userDelegate);
+    console.log(this.connectivityDelegate);
+    console.log(this.discoveryDelegate);
+    console.log(this.desktopAgentDelegate);
+    console.log(this.onTokenExpired);
 
     const onDesktopAgentAquiredStatus = (aquired: boolean) => {
       if (aquired) {
         this.desktopAgentDelegate?.desktopAgentAquired();
       } else {
         this.desktopAgentDelegate?.desktopAgentReleased();
+      }
+    };
+
+    const onProvisionedState = async (isProvisioned: boolean) => {
+      if (!isProvisioned && this.isProvisioned) {
+        console.log('desktopAgentDelegate before onDesktopAgentRelaunched', this.desktopAgentDelegate);
+        this.desktopAgentDelegate?.onDesktopAgentRelaunched();
+      }
+
+      this.isProvisioned = isProvisioned;
+      if (!this.isProvisioned) {
+        const errorCode = await this.sendProvision();
+        if (errorCode === SyncStageSDKErrorCode.OK) {
+          console.log('Auto-provisioned successfully');
+        }
       }
     };
 
@@ -79,34 +111,70 @@ export default class SyncStage implements ISyncStage {
       );
     };
 
+    // Bind onDelegateMessage to this
+    this.onDelegateMessage = this.onDelegateMessage.bind(this);
+
     this.ws = new WebSocketClient(
       this.syncStageObjectId,
-      this.wsAddressForSDK,
-      onDelegateMessage,
-      this.onWebsocketReconnected,
+      this.onDelegateMessage,
       onDesktopAgentAquiredStatus,
       setAllConnectionsStatusToOffline,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => {},
+      onProvisionedState,
       this.desktopAgentDelegate,
     );
 
-    this.handleUnload = this.handleUnload.bind(this);
-
-    window.addEventListener('unload', async (e) => {
-      e.preventDefault();
-      await this.handleUnload();
-      e.returnValue = true;
-    });
-
     console.log(`Welcome to SyncStage ${this.getSDKVersion()}`);
+  }
+
+  private async initUrls() {
+    [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = await this.generateWebSocketURLS();
+    this.ws.connect(this.wsAddressForSDK);
+  }
+
+  async isCompatible(os: string): Promise<boolean> {
+    const requestType = SyncStageMessageType.VersionRequest;
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+
+    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
+      console.log('Error fetching compatibility matrix');
+      return false;
+    }
+
+    let matrix;
+    try {
+      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      matrix = await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
+      matrix = JSON.parse(compatibilityMatrix);
+    }
+
+    console.log('Compatibility matrix:', matrix);
+
+    console.log('Current Web SDK version:', version);
+    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
+    console.log('Current OS:', os);
+
+    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
+    console.log(`Compatible versions length ${compatibleVersions.length}:`, compatibleVersions);
+
+    if (compatibleVersions.length === 0) {
+      console.log('No compatible versions found');
+      return false;
+    }
+
+    const compatible = compatibleVersions.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
+    console.log('Compatible:', compatible);
+    return compatible;
   }
 
   private handleServerSelection(selectedServer: any): void {
     console.log('Selected server:', selectedServer);
 
     this.selectedServer = selectedServer;
-    if (this.discoveryDelegate !== null) {
+    if (this.discoveryDelegate) {
       console.log('calling discoveryDelegate.serverSelected');
       this.discoveryDelegate.serverSelected(selectedServer);
     } else {
@@ -114,22 +182,19 @@ export default class SyncStage implements ISyncStage {
     }
   }
 
-  private async handleUnload(): Promise<void> {
-    // This message is sent directly from the backend service, but it seems it is also good to have it as a backup
-    // Send a message to the WebSocket before the window unloads
-    await this.ws.sendMessage(SyncStageMessageType.TabClosed, {}, undefined, undefined, false);
-  }
-
   public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
+    console.log('updateOnWebsocketReconnected in SDK index.ts');
     this.onWebsocketReconnected = onWebsocketReconnected;
+    this.onWebsocketReconnected = this.onWebsocketReconnected.bind(this);
     this.ws.updateOnWebsocketReconnected(this.onWebsocketReconnected);
   }
 
   // #region Private methods
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
+    console.log(`SDK index.js Received message ${responseType} with content: ${JSON.stringify(content)}`);
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
-        if (this.connectivityDelegate !== null) {
+        if (this.connectivityDelegate) {
           console.log('calling connectivityDelegate.transmitterConnectivityChanged');
           this.connectivityDelegate.transmitterConnectivityChanged(content.connected);
         } else {
@@ -138,7 +203,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.ReceiverConnectivityChanged: {
-        if (this.connectivityDelegate !== null) {
+        if (this.connectivityDelegate) {
           console.log('calling connectivityDelegate.receiverConnectivityChanged');
           this.connectivityDelegate.receiverConnectivityChanged(content.identifier, content.connected);
         } else {
@@ -147,7 +212,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.UserJoined: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.userJoined');
           this.userDelegate.userJoined(content);
           this.sessionState?.receivers.push(content);
@@ -157,7 +222,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.UserLeft: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.userLeft');
           this.userDelegate.userLeft(content.identifier);
 
@@ -172,7 +237,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.UserMuted: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.userMuted');
           this.userDelegate.userMuted(content.identifier);
         } else {
@@ -181,7 +246,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.UserUnmuted: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.userUnmuted');
           this.userDelegate.userUnmuted(content.identifier);
         } else {
@@ -190,7 +255,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.RecordingStarted: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.sessionRecordingStarted');
           this.userDelegate.sessionRecordingStarted();
         } else {
@@ -200,7 +265,7 @@ export default class SyncStage implements ISyncStage {
       }
 
       case SyncStageMessageType.RecordingStopped: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.sessionRecordingStopped');
           this.userDelegate.sessionRecordingStopped();
         } else {
@@ -210,7 +275,7 @@ export default class SyncStage implements ISyncStage {
       }
 
       case SyncStageMessageType.SessionOut: {
-        if (this.userDelegate !== null) {
+        if (this.userDelegate) {
           console.log('calling userDelegate.sessionOut');
           this.userDelegate.sessionOut();
         } else {
@@ -220,8 +285,10 @@ export default class SyncStage implements ISyncStage {
       }
 
       case SyncStageMessageType.DiscoveryResult: {
-        if (this.discoveryDelegate !== null) {
+        if (this.discoveryDelegate) {
           console.log('calling discoveryDelegate.discoveryResults');
+          console.log('discoveryDelegate delegate visible in sdk:');
+          console.log(this.discoveryDelegate);
           this.discoveryDelegate.discoveryResults(content.zones);
         } else {
           console.log('discoveryDelegate is not added');
@@ -229,7 +296,7 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.DiscoveryLatencyResult: {
-        if (this.discoveryDelegate !== null) {
+        if (this.discoveryDelegate) {
           console.log('calling discoveryDelegate.discoveryResults');
           this.discoveryDelegate.discoveryLatencyTestResults(content.results);
         } else {
@@ -241,10 +308,6 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.DesktopAgentConnected: {
         console.log('calling desktopAgentDelegate.desktopAgentConnected');
         this.desktopAgentDelegate?.desktopAgentConnected();
-        if (this.jwt) {
-          this.updateToken(this.jwt);
-        }
-
         break;
       }
 
@@ -382,28 +445,42 @@ export default class SyncStage implements ISyncStage {
       }
       return expired;
     } else {
-      console.log('No JWT provided, treating as expired.');
+      console.log('No JWT provided.');
       return true;
     }
   }
   // #endregion
 
-  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
-    this.jwt = jwt;
-
+  private async sendProvision(): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
+
     const requestType = SyncStageMessageType.ProvisionRequest;
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {
-      token: jwt,
+      token: this.jwt,
     });
 
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
-
     if (errorCode === SyncStageSDKErrorCode.OK) {
+      this.isProvisioned = true;
+    }
+    return errorCode;
+  }
+
+  async init(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+
+    let errorCode;
+    if (!this.isProvisioned) {
+      errorCode = await this.sendProvision();
+    } else {
+      errorCode = SyncStageSDKErrorCode.OK;
+    }
+
+    if (errorCode === SyncStageSDKErrorCode.OK && !this.selectedServer) {
       const [selectedServer, errorCode] = await this.getBestAvailableServer();
       if (errorCode === SyncStageSDKErrorCode.OK) {
         this.handleServerSelection(selectedServer);
@@ -413,9 +490,7 @@ export default class SyncStage implements ISyncStage {
     return errorCode;
   }
 
-  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
-    this.jwt = jwt;
-
+  private async sendUpdate(): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
@@ -423,9 +498,14 @@ export default class SyncStage implements ISyncStage {
     console.log(requestType);
 
     const response = await this.ws.sendMessage(requestType, {
-      token: jwt,
+      token: this.jwt,
     });
     return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
+    this.jwt = jwt;
+    return await this.sendUpdate();
   }
 
   public isDesktopAgentConnected(): boolean {
@@ -701,14 +781,57 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  public getDesktopAgentProtocolHandler(): string {
+  async getDesktopAgentProtocolHandler(): Promise<string> {
+    while (this.wsAddressForDesktopAgent === '') {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
     const encodedWssAddress = encodeURIComponent(this.wsAddressForDesktopAgent);
     return `syncstageagent://${encodedWssAddress}`;
   }
 
-  private generateWebSocketURLS(): string[] {
-    const pairingCode = localStorage.getItem('pairingCode') || this.generateRandomString(256);
-    localStorage.setItem('pairingCode', pairingCode);
+  public async checkProvisionedStatus(): Promise<boolean> {
+    return this.isProvisioned;
+  }
+  // IndexedDB helper functions
+  private openDB = (name: string, version: number, onUpgradeNeeded: (request: IDBOpenDBRequest) => void) => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(name, version);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = () => onUpgradeNeeded(request);
+    });
+  };
+
+  private getFromDB = async (db: IDBDatabase, storeName: string, key: string) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName);
+      const store = transaction.objectStore(storeName);
+      const request = store.get(key);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+  };
+
+  private setInDB = async (db: IDBDatabase, storeName: string, key: string, value: any) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.put(value, key);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+  };
+
+  private async generateWebSocketURLS(): Promise<string[]> {
+    const db = await this.openDB('myDB', 1, (request) => {
+      request.result.createObjectStore('myStore');
+    });
+
+    let pairingCode = await this.getFromDB(db, 'myStore', 'pairingCode');
+    if (!pairingCode) {
+      pairingCode = this.generateRandomString(256);
+      await this.setInDB(db, 'myStore', 'pairingCode', pairingCode);
+    }
 
     return [
       `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
