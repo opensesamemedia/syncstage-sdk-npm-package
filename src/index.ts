@@ -526,6 +526,7 @@ export default class SyncStage implements ISyncStage {
   // PUBLIC ============================================================================================================
 
   async isCompatible(os: string): Promise<boolean> {
+    console.log('isCompatible');
     const requestType = SyncStageMessageType.VersionRequest;
     const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
 
@@ -548,21 +549,23 @@ export default class SyncStage implements ISyncStage {
     console.log('Current Web SDK version:', version);
     console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
     console.log('Current OS:', os);
+    try {
+      const compatibleVersion = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version)[0];
 
-    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
-    console.log(`Compatible versions length ${compatibleVersions.length}:`, compatibleVersions);
-
-    if (compatibleVersions.length === 0) {
+      console.log('compatibleVersion:', compatibleVersion);
+      const compatible = compatibleVersion.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
+      console.log('Compatible:', compatible);
+      return compatible;
+    } catch (error) {
+      console.error(`Error in isCompatible: ${error}`);
       console.log('No compatible versions found');
+
       return false;
     }
-
-    const compatible = compatibleVersions.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
-    console.log('Compatible:', compatible);
-    return compatible;
   }
 
   async getLatestCompatibleDesktopAgentVersion(os: string): Promise<string | null> {
+    console.log('getLatestCompatibleDesktopAgentVersion');
     const requestType = SyncStageMessageType.VersionRequest;
     const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
 
@@ -586,11 +589,16 @@ export default class SyncStage implements ISyncStage {
     console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
     console.log('Current OS:', os);
 
-    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
-    // return last string from the compatible versions array
-    if (compatibleVersions.length > 0) {
-      return compatibleVersions.compatibleDesktopAgentVersions[os].slice(-1)[0];
-    } else return null;
+    try {
+      const compatibleVersion = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version)[0];
+
+      console.log('compatibleVersion:', compatibleVersion);
+
+      return compatibleVersion.compatibleDesktopAgentVersions[os].slice(-1)[0];
+    } catch (error) {
+      console.error(`Error in getLatestCompatibleDesktopAgentVersion: ${error}`);
+      return null;
+    }
   }
 
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
