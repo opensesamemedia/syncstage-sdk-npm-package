@@ -1,6 +1,6 @@
 {
-  "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
-  "version": "0.6.0-rc45",
+  "name": "@opensesamemedia/syncstage",
+  "version": "0.6.0",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
