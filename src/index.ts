@@ -43,7 +43,7 @@ export default class SyncStage implements ISyncStage {
   private wsAddressForDesktopAgent = '';
   private wsAddressForSDK = '';
   // eslint-disable-next-line @typescript-eslint/no-empty-function
-  private onWebsocketReconnected: () => void = async () => {};
+  private onDesktopAgentReconnected: () => void = async () => {};
   // eslint-disable-next-line max-len
   private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
   private syncStageObjectId: string;
@@ -84,21 +84,6 @@ export default class SyncStage implements ISyncStage {
       }
     };
 
-    const onProvisionedState = async (isProvisioned: boolean) => {
-      if (!isProvisioned && this.isProvisioned) {
-        console.log('desktopAgentDelegate before onDesktopAgentRelaunched', this.desktopAgentDelegate);
-        this.desktopAgentDelegate?.onDesktopAgentRelaunched();
-      }
-
-      this.isProvisioned = isProvisioned;
-      if (!this.isProvisioned) {
-        const errorCode = await this.sendProvision();
-        if (errorCode === SyncStageSDKErrorCode.OK) {
-          console.log('Auto-provisioned successfully');
-        }
-      }
-    };
-
     const setAllConnectionsStatusToOffline = () => {
       // eslint-disable-next-line @typescript-eslint/no-this-alias
       const self = this;
@@ -111,8 +96,10 @@ export default class SyncStage implements ISyncStage {
       );
     };
 
-    // Bind onDelegateMessage to this
+    // Binds to this
     this.onDelegateMessage = this.onDelegateMessage.bind(this);
+    this.onProvisionedState = this.onProvisionedState.bind(this);
+    this.sendProvision = this.sendProvision.bind(this);
 
     this.ws = new WebSocketClient(
       this.syncStageObjectId,
@@ -121,53 +108,17 @@ export default class SyncStage implements ISyncStage {
       setAllConnectionsStatusToOffline,
       // eslint-disable-next-line @typescript-eslint/no-empty-function
       () => {},
-      onProvisionedState,
+      this.onProvisionedState,
       this.desktopAgentDelegate,
     );
 
     console.log(`Welcome to SyncStage ${this.getSDKVersion()}`);
   }
 
+  // PRIVATE ===========================================================================================================
   private async initUrls() {
     [this.wsAddressForDesktopAgent, this.wsAddressForSDK] = await this.generateWebSocketURLS();
     this.ws.connect(this.wsAddressForSDK);
-  }
-
-  async isCompatible(os: string): Promise<boolean> {
-    const requestType = SyncStageMessageType.VersionRequest;
-    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
-
-    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
-      console.log('Error fetching compatibility matrix');
-      return false;
-    }
-
-    let matrix;
-    try {
-      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
-      matrix = await response.json();
-    } catch (error) {
-      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
-      matrix = JSON.parse(compatibilityMatrix);
-    }
-
-    console.log('Compatibility matrix:', matrix);
-
-    console.log('Current Web SDK version:', version);
-    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
-    console.log('Current OS:', os);
-
-    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
-    console.log(`Compatible versions length ${compatibleVersions.length}:`, compatibleVersions);
-
-    if (compatibleVersions.length === 0) {
-      console.log('No compatible versions found');
-      return false;
-    }
-
-    const compatible = compatibleVersions.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
-    console.log('Compatible:', compatible);
-    return compatible;
   }
 
   private handleServerSelection(selectedServer: any): void {
@@ -182,16 +133,25 @@ export default class SyncStage implements ISyncStage {
     }
   }
 
-  public updateOnWebsocketReconnected(onWebsocketReconnected: () => void): void {
-    console.log('updateOnWebsocketReconnected in SDK index.ts');
-    this.onWebsocketReconnected = onWebsocketReconnected;
-    this.onWebsocketReconnected = this.onWebsocketReconnected.bind(this);
-    this.ws.updateOnWebsocketReconnected(this.onWebsocketReconnected);
-  }
+  private onProvisionedState = async (isProvisioned: boolean) => {
+    if (!isProvisioned && this.isProvisioned) {
+      this.desktopAgentDelegate?.onDesktopAgentDeprovisioned();
+    }
 
-  // #region Private methods
+    this.isProvisioned = isProvisioned;
+    if (!this.isProvisioned) {
+      const errorCode = await this.sendProvision();
+      if (errorCode === SyncStageSDKErrorCode.OK) {
+        console.log('Auto-provisioned successfully');
+      }
+    }
+
+    if (this.isProvisioned) {
+      this.desktopAgentDelegate?.onDesktopAgentProvisioned();
+    }
+  };
+
   private onDelegateMessage(responseType: SyncStageMessageType, content: any): any {
-    console.log(`SDK index.js Received message ${responseType} with content: ${JSON.stringify(content)}`);
     switch (responseType) {
       case SyncStageMessageType.TransmitterConnectivityChanged: {
         if (this.connectivityDelegate) {
@@ -466,6 +426,7 @@ export default class SyncStage implements ISyncStage {
     const errorCode = this.parseResponseOnlyErrorCode(requestType, response);
     if (errorCode === SyncStageSDKErrorCode.OK) {
       this.isProvisioned = true;
+      this.desktopAgentDelegate?.onDesktopAgentProvisioned();
     }
     return errorCode;
   }
@@ -503,17 +464,152 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
+  private async generateWebSocketURLS(): Promise<string[]> {
+    const db = await this.openDB('myDB', 1, (request) => {
+      request.result.createObjectStore('myStore');
+    });
+
+    let pairingCode = await this.getFromDB(db, 'myStore', 'pairingCode');
+    if (!pairingCode) {
+      pairingCode = this.generateRandomString(256);
+      await this.setInDB(db, 'myStore', 'pairingCode', pairingCode);
+    }
+
+    return [
+      `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
+      `${this.baseWssAddress}?peerType=BROWSER_SDK&pairingCode=${pairingCode}`,
+    ];
+  }
+
+  private generateRandomString(length: number): string {
+    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+
+    for (let i = 0; i < length; i++) {
+      const randomIndex = Math.floor(Math.random() * characters.length);
+      result += characters.charAt(randomIndex);
+    }
+
+    return result;
+  }
+
+  //****** IndexedDB helper functions ================================================================================
+  private openDB = (name: string, version: number, onUpgradeNeeded: (request: IDBOpenDBRequest) => void) => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open(name, version);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = () => onUpgradeNeeded(request);
+    });
+  };
+
+  private getFromDB = async (db: IDBDatabase, storeName: string, key: string) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName);
+      const store = transaction.objectStore(storeName);
+      const request = store.get(key);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+  };
+
+  private setInDB = async (db: IDBDatabase, storeName: string, key: string, value: any) => {
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction(storeName, 'readwrite');
+      const store = transaction.objectStore(storeName);
+      const request = store.put(value, key);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+    });
+  };
+
+  // PUBLIC ============================================================================================================
+
+  async isCompatible(os: string): Promise<boolean> {
+    const requestType = SyncStageMessageType.VersionRequest;
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+
+    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
+      console.log('Error fetching compatibility matrix');
+      return false;
+    }
+
+    let matrix;
+    try {
+      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      matrix = await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
+      matrix = JSON.parse(compatibilityMatrix);
+    }
+
+    console.log('Compatibility matrix:', matrix);
+
+    console.log('Current Web SDK version:', version);
+    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
+    console.log('Current OS:', os);
+
+    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
+    console.log(`Compatible versions length ${compatibleVersions.length}:`, compatibleVersions);
+
+    if (compatibleVersions.length === 0) {
+      console.log('No compatible versions found');
+      return false;
+    }
+
+    const compatible = compatibleVersions.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
+    console.log('Compatible:', compatible);
+    return compatible;
+  }
+
+  async getLatestCompatibleDesktopAgentVersion(os: string): Promise<string | null> {
+    const requestType = SyncStageMessageType.VersionRequest;
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+
+    if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
+      console.log('Error fetching compatibility matrix');
+      return null;
+    }
+
+    let matrix;
+    try {
+      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      matrix = await response.json();
+    } catch (error) {
+      console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
+      matrix = JSON.parse(compatibilityMatrix);
+    }
+
+    console.log('Compatibility matrix:', matrix);
+
+    console.log('Current Web SDK version:', version);
+    console.log('Current Desktop Agent version:', versionResponse.content.agentVersion);
+    console.log('Current OS:', os);
+
+    const compatibleVersions = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version);
+    // return last string from the compatible versions array
+    if (compatibleVersions.length > 0) {
+      return compatibleVersions.compatibleDesktopAgentVersions[os].slice(-1)[0];
+    } else return null;
+  }
+
   async updateToken(jwt: string): Promise<SyncStageSDKErrorCode> {
     this.jwt = jwt;
     return await this.sendUpdate();
   }
 
-  public isDesktopAgentConnected(): boolean {
+  isDesktopAgentConnected(): boolean {
     return this.ws.desktopAgentConnected();
   }
 
-  public getSDKVersion(): string {
+  getSDKVersion(): string {
     return version;
+  }
+
+  updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
+    this.onDesktopAgentReconnected = onDesktopAgentReconnected;
+    this.onDesktopAgentReconnected = this.onDesktopAgentReconnected.bind(this);
+    this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
   }
 
   // Deprecated
@@ -780,6 +876,7 @@ export default class SyncStage implements ISyncStage {
     const response = await this.ws.sendMessage(requestType, {});
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
+  declare indexedDB: any; // Add this line to declare the indexedDB object
 
   async getDesktopAgentProtocolHandler(): Promise<string> {
     while (this.wsAddressForDesktopAgent === '') {
@@ -789,66 +886,11 @@ export default class SyncStage implements ISyncStage {
     return `syncstageagent://${encodedWssAddress}`;
   }
 
-  public async checkProvisionedStatus(): Promise<boolean> {
+  async checkProvisionedStatus(): Promise<boolean> {
+    console.log(`SDK index checkProvisionedStatus ${this.isProvisioned}`);
+    console.log(`checkProvisionedStatus 'this' is an instance of: ${this.constructor.name}`);
+
     return this.isProvisioned;
-  }
-  // IndexedDB helper functions
-  private openDB = (name: string, version: number, onUpgradeNeeded: (request: IDBOpenDBRequest) => void) => {
-    return new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open(name, version);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-      request.onupgradeneeded = () => onUpgradeNeeded(request);
-    });
-  };
-
-  private getFromDB = async (db: IDBDatabase, storeName: string, key: string) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName);
-      const store = transaction.objectStore(storeName);
-      const request = store.get(key);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  };
-
-  private setInDB = async (db: IDBDatabase, storeName: string, key: string, value: any) => {
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(storeName, 'readwrite');
-      const store = transaction.objectStore(storeName);
-      const request = store.put(value, key);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve(request.result);
-    });
-  };
-
-  private async generateWebSocketURLS(): Promise<string[]> {
-    const db = await this.openDB('myDB', 1, (request) => {
-      request.result.createObjectStore('myStore');
-    });
-
-    let pairingCode = await this.getFromDB(db, 'myStore', 'pairingCode');
-    if (!pairingCode) {
-      pairingCode = this.generateRandomString(256);
-      await this.setInDB(db, 'myStore', 'pairingCode', pairingCode);
-    }
-
-    return [
-      `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
-      `${this.baseWssAddress}?peerType=BROWSER_SDK&pairingCode=${pairingCode}`,
-    ];
-  }
-
-  private generateRandomString(length: number): string {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    let result = '';
-
-    for (let i = 0; i < length; i++) {
-      const randomIndex = Math.floor(Math.random() * characters.length);
-      result += characters.charAt(randomIndex);
-    }
-
-    return result;
   }
 }
 

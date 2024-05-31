@@ -3,5 +3,6 @@ export default interface ISyncStageDesktopAgentDelegate {
   desktopAgentReleased(): void;
   desktopAgentConnected(): void;
   desktopAgentDisconnected(): void;
-  onDesktopAgentRelaunched(): void;
+  onDesktopAgentDeprovisioned(): void;
+  onDesktopAgentProvisioned(): void;
 }
