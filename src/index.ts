@@ -45,7 +45,8 @@ export default class SyncStage implements ISyncStage {
   // eslint-disable-next-line @typescript-eslint/no-empty-function
   private onDesktopAgentReconnected: () => void = async () => {};
   // eslint-disable-next-line max-len
-  private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join / leave
+  private sessionState: ISession | null = null; // the whole state is not updated asynchronously, only receivers list is updated on user join /
+  private sessionConnectionState: Map<string, boolean | null> = new Map<string, boolean | null>();
   private syncStageObjectId: string;
   private selectedServer: IServerInstance | null = null;
 
@@ -96,6 +97,21 @@ export default class SyncStage implements ISyncStage {
       );
     };
 
+    const setConectionsStatusBackToLastRemembered = () => {
+      // eslint-disable-next-line @typescript-eslint/no-this-alias
+      const self = this;
+
+      console.log('setConectionsStatusBackToLastRemembered');
+      this.connectivityDelegate?.transmitterConnectivityChanged(true);
+
+      this.sessionState?.receivers.forEach((connection) =>
+        this.connectivityDelegate?.receiverConnectivityChanged(
+          connection.identifier,
+          self.sessionConnectionState.get(connection.identifier) ?? false,
+        ),
+      );
+    };
+
     // Binds to this
     this.onDelegateMessage = this.onDelegateMessage.bind(this);
     this.onProvisionedState = this.onProvisionedState.bind(this);
@@ -106,8 +122,7 @@ export default class SyncStage implements ISyncStage {
       this.onDelegateMessage,
       onDesktopAgentAquiredStatus,
       setAllConnectionsStatusToOffline,
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
-      () => {},
+      setConectionsStatusBackToLastRemembered,
       this.onProvisionedState,
       this.desktopAgentDelegate,
     );
@@ -163,17 +178,20 @@ export default class SyncStage implements ISyncStage {
         break;
       }
       case SyncStageMessageType.ReceiverConnectivityChanged: {
+        this.sessionConnectionState.set(content.identifier, content.connected);
         if (this.connectivityDelegate) {
           console.log('calling connectivityDelegate.receiverConnectivityChanged');
           this.connectivityDelegate.receiverConnectivityChanged(content.identifier, content.connected);
         } else {
           console.log('connectivityDelegate is not added');
         }
+
         break;
       }
       case SyncStageMessageType.UserJoined: {
         if (this.userDelegate) {
           console.log('calling userDelegate.userJoined');
+          this.sessionConnectionState.set(content.identifier, null);
           this.userDelegate.userJoined(content);
           this.sessionState?.receivers.push(content);
         } else {
@@ -389,7 +407,14 @@ export default class SyncStage implements ISyncStage {
     if (this.jwt != null) {
       // check if token will be valid for at least the next 10 seconds
       const dateIn10sec = Date.now() + 10 * 1000;
-      const jwtExp = JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+      let jwtExp;
+
+      try {
+        jwtExp = JSON.parse(atob(this.jwt.split('.')[1])).exp * 1000;
+      } catch (e) {
+        console.log('Invalid JWT provided.');
+        return true;
+      }
 
       const expired = dateIn10sec >= jwtExp;
 
