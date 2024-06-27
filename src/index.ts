@@ -26,8 +26,9 @@ console.log = function () {
 };
 
 const COMPATIBILITY_MATRIX_ADDRESS = 'https://public.sync-stage.com/agent/compatibility-matrix.json';
+const BASE_WSS_ADDRESS = 'wss://slb1z4dn96.execute-api.us-east-1.amazonaws.com/master/';
 // const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+// const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
