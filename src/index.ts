@@ -564,7 +564,7 @@ export default class SyncStage implements ISyncStage {
 
     let matrix;
     try {
-      const response = await fetch(COMPATIBILITY_MATRIX_ADDRESS);
+      const response = await fetch(`${COMPATIBILITY_MATRIX_ADDRESS}?nocache=${new Date().getTime()}`);
       matrix = await response.json();
     } catch (error) {
       console.error(`Failed to fetch compatibility matrix, using fallback. Error: ${error}`);
