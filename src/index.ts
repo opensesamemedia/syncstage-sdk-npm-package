@@ -362,6 +362,11 @@ export default class SyncStage implements ISyncStage {
       case SyncStageMessageType.ServerInstancesResponse: {
         return content as IServerInstances;
       }
+
+      case SyncStageMessageType.GetSessionSettingsResponse: {
+        return content as ISessionSettings;
+      }
+
       // IMeasurements response
       case SyncStageMessageType.GetReceiverMeasurementsResponse:
       case SyncStageMessageType.GetTransmitterMeasurementsResponse: {
@@ -912,6 +917,73 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
   declare indexedDB: any; // Add this line to declare the indexedDB object
+
+  async getSessionSettings(): Promise<[ISessionSettings | null, SyncStageSDKErrorCode]> {
+    if (await this.isJwtExpired()) {
+      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
+    }
+
+    const requestType = SyncStageMessageType.GetSessionSettingsRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, {});
+    return this.parseResponseErrorCodeAndContent(requestType, response);
+  }
+
+  async setInputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+    const requestType = SyncStageMessageType.SetInputDeviceRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, { device });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async setOutputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+    const requestType = SyncStageMessageType.SetOutputDeviceRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, { device });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async setNoiseCancellation(enabled: boolean): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+    const requestType = SyncStageMessageType.SetNoiseCancellationRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, { enabled });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async setDisableGain(disabled: boolean): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+    const requestType = SyncStageMessageType.SetDisableGainRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, { disabled });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
+
+  async setDirectMonitor(enabled: boolean): Promise<SyncStageSDKErrorCode> {
+    if (await this.isJwtExpired()) {
+      return SyncStageSDKErrorCode.TOKEN_EXPIRED;
+    }
+    const requestType = SyncStageMessageType.SetDirectMonitorRequest;
+    console.log(requestType);
+
+    const response = await this.ws.sendMessage(requestType, { enabled });
+    return this.parseResponseOnlyErrorCode(requestType, response);
+  }
 
   async getDesktopAgentProtocolHandler(): Promise<string> {
     while (this.wsAddressForDesktopAgent === '') {

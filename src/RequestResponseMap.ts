@@ -21,4 +21,11 @@ export enum RequestResponseMap {
   StopRecordingRequest = SyncStageMessageType.StopRecordingResponse,
   UpdateTokenRequest = SyncStageMessageType.UpdateTokenResponse,
   VersionRequest = SyncStageMessageType.VersionResponse,
+  GetSessionSettingsRequest = SyncStageMessageType.GetSessionSettingsResponse,
+  SetInputDeviceRequest = SyncStageMessageType.SetInputDeviceResponse,
+  SetOutputDeviceRequest = SyncStageMessageType.SetOutputDeviceResponse,
+  SetLatencyOptimizationLevelRequest = SyncStageMessageType.SetLatencyOptimizationLevelResponse,
+  SetNoiseCancellationRequest = SyncStageMessageType.SetNoiseCancellationResponse,
+  SetDisableGainRequest = SyncStageMessageType.SetDisableGainResponse,
+  SetDirectMonitorRequest = SyncStageMessageType.SetDirectMonitorResponse,
 }

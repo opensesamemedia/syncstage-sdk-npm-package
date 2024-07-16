@@ -42,4 +42,10 @@ export default interface ISyncStage {
   getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   checkProvisionedStatus(): Promise<boolean>;
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
+  getSessionSettings(): Promise<[ISessionSettings | null, SyncStageSDKErrorCode]>;
+  setInputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode>;
+  setOutputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode>;
+  setNoiseCancellation(enabled: boolean): Promise<SyncStageSDKErrorCode>;
+  setDisableGain(disabled: boolean): Promise<SyncStageSDKErrorCode>;
+  setDirectMonitor(enabled: boolean): Promise<SyncStageSDKErrorCode>;
 }
