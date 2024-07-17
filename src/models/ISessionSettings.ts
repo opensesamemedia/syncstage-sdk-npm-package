@@ -14,3 +14,5 @@ interface ISessionSettings {
   disableGain: boolean;
   directMonitorEnabled: boolean;
 }
+
+export default ISessionSettings;

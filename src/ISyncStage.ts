@@ -5,6 +5,8 @@ import type { IMeasurements } from './models/IMeasurements';
 import type { ISession, ISessionIdentifier } from './models/ISession';
 import type { IServerInstance, IServerInstances } from './models/IServerInstances';
 import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
+import ISessionSettings from './models/ISessionSettings';
+import LatencyOptimizationLevel from './LatencyOptimizationLevel';
 
 export default interface ISyncStage {
   connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -37,15 +39,15 @@ export default interface ISyncStage {
   isMicrophoneMuted(): Promise<[boolean | null, SyncStageSDKErrorCode]>;
   getReceiverMeasurements(identifier: string): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
   getTransmitterMeasurements(): Promise<[IMeasurements | null, SyncStageSDKErrorCode]>;
-  getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]>;
   getDesktopAgentProtocolHandler(): Promise<string>;
   getSelectedServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   checkProvisionedStatus(): Promise<boolean>;
   getBestAvailableServer(): Promise<[IServerInstance | null, SyncStageSDKErrorCode]>;
   getSessionSettings(): Promise<[ISessionSettings | null, SyncStageSDKErrorCode]>;
-  setInputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode>;
-  setOutputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode>;
+  setInputDevice(identifier: number): Promise<SyncStageSDKErrorCode>;
+  setOutputDevice(identifier: number): Promise<SyncStageSDKErrorCode>;
   setNoiseCancellation(enabled: boolean): Promise<SyncStageSDKErrorCode>;
   setDisableGain(disabled: boolean): Promise<SyncStageSDKErrorCode>;
   setDirectMonitor(enabled: boolean): Promise<SyncStageSDKErrorCode>;
+  setLatencyOptimizationLevel(level: LatencyOptimizationLevel): Promise<SyncStageSDKErrorCode>;
 }

@@ -16,6 +16,8 @@ import { ILatencyOptimizationLevel } from './models/ILatencyOptimizationLevel';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 import { IZoneLatency } from './models/IZoneLatency';
 import { compatibilityMatrix } from './compatibility-matrix';
+import LatencyOptimizationLevel from './LatencyOptimizationLevel';
+import ISessionSettings from './models/ISessionSettings';
 
 const originalConsoleLog = console.log;
 
@@ -351,10 +353,6 @@ export default class SyncStage implements ISyncStage {
         return content.mute;
       }
 
-      case SyncStageMessageType.LatencyOptimizationLevelResponse: {
-        return content as ILatencyOptimizationLevel;
-      }
-
       case SyncStageMessageType.BestAvailableServerResponse: {
         return content as IServerInstance;
       }
@@ -381,12 +379,17 @@ export default class SyncStage implements ISyncStage {
       // Responses with empty content
       case SyncStageMessageType.Pong:
       case SyncStageMessageType.LeaveResponse:
-      case SyncStageMessageType.ChangeLatencyOptimizationLevelResponse:
+      case SyncStageMessageType.SetLatencyOptimizationLevelRequest:
       case SyncStageMessageType.ProvisionResponse:
       case SyncStageMessageType.UpdateTokenResponse:
       case SyncStageMessageType.ToggleMicrophoneResponse:
       case SyncStageMessageType.ChangeReceiverVolumeResponse:
       case SyncStageMessageType.StartRecordingResponse:
+      case SyncStageMessageType.SetDirectMonitorResponse:
+      case SyncStageMessageType.SetDisableGainResponse:
+      case SyncStageMessageType.SetNoiseCancellationResponse:
+      case SyncStageMessageType.SetOutputDeviceResponse:
+      case SyncStageMessageType.SetInputDeviceResponse:
       case SyncStageMessageType.StopRecordingResponse: {
         return {};
       }
@@ -869,23 +872,11 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  async getLatencyOptimizationLevel(): Promise<[ILatencyOptimizationLevel | null, SyncStageSDKErrorCode]> {
-    if (await this.isJwtExpired()) {
-      return [null, SyncStageSDKErrorCode.TOKEN_EXPIRED];
-    }
-    const requestType = SyncStageMessageType.LatencyOptimizationLevelRequest;
-
-    console.log(`session ${requestType}`);
-
-    const response = await this.ws.sendMessage(requestType, {});
-    return this.parseResponseErrorCodeAndContent(requestType, response);
-  }
-
-  async changeLatencyOptimizationLevel(level: number): Promise<SyncStageSDKErrorCode> {
+  async setLatencyOptimizationLevel(level: LatencyOptimizationLevel): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
-    const requestType = SyncStageMessageType.ChangeLatencyOptimizationLevelRequest;
+    const requestType = SyncStageMessageType.SetLatencyOptimizationLevelRequest;
 
     console.log(`session ${requestType}`);
 
@@ -930,25 +921,25 @@ export default class SyncStage implements ISyncStage {
     return this.parseResponseErrorCodeAndContent(requestType, response);
   }
 
-  async setInputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode> {
+  async setInputDevice(identifier: number): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
     const requestType = SyncStageMessageType.SetInputDeviceRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { device });
+    const response = await this.ws.sendMessage(requestType, { identifier });
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
-  async setOutputDevice(device: IIODevice): Promise<SyncStageSDKErrorCode> {
+  async setOutputDevice(identifier: number): Promise<SyncStageSDKErrorCode> {
     if (await this.isJwtExpired()) {
       return SyncStageSDKErrorCode.TOKEN_EXPIRED;
     }
     const requestType = SyncStageMessageType.SetOutputDeviceRequest;
     console.log(requestType);
 
-    const response = await this.ws.sendMessage(requestType, { device });
+    const response = await this.ws.sendMessage(requestType, { identifier });
     return this.parseResponseOnlyErrorCode(requestType, response);
   }
 
@@ -1011,8 +1002,10 @@ export {
   IServerInstances,
   IServerInstance,
   ISessionIdentifier,
+  ISessionSettings,
   ISession,
   IMeasurements,
   IZoneLatency,
   ILatencyOptimizationLevel,
+  LatencyOptimizationLevel,
 };
