@@ -7,9 +7,13 @@ import { SyncStageMessageType } from './SyncStageMessageType';
 import ISyncStageDesktopAgentDelegate from './delegates/ISyncDesktopAgentDelegate';
 
 const WAIT_FOR_RESPONSE_TIMEOUT_MS = 35000;
-const PING_INTERVAL_MS = 5000;
+const AGENT_PING_INTERVAL_MS = 5000;
+const SERVER_PING_INTERVAL_MS = 2000;
 const ISONLINE_INTERVAL_MS = 5000;
-const ALLOWED_TIME_WITHOUT_PONG_MS = 30000;
+const ALLOWED_TIME_WITHOUT_AGENT_PONG_MS = 11000;
+const ALLOWED_TIME_WITHOUT_SERVER_PONG_MS = 5000;
+const ERROR_CONNECTIONS_BEFORE_AQUIRED = 6;
+
 export interface IWebsocketPayload {
   type: SyncStageMessageType;
   msgId: string;
@@ -33,23 +37,28 @@ export default class {
   private onOnline: () => void;
   private onOffline: () => void;
   private onProvisionedState: (state: boolean) => void;
+  private isWebsocketConnectionLive = false;
   private isDesktopAgentConnected = false;
   private pingInterval: any = null;
-  private pingCheckInterval: any = null;
+  private serverPingInterval: any = null;
+  private agentPingCheckInterval: any = null;
+  private checkDesktopAgentInterval: any = null;
   private isOnlineInterval: any = null;
   private wasSleepingInterval: any = null;
-  private watchdogInterval: any = null;
+  private reconnectWatchdogInterval: any = null;
   private lastTimeActive = Date.now();
   private desktopAgentDelegate: ISyncStageDesktopAgentDelegate | null;
   private reconnectingTimestamp: number | null = null;
-  private lastPongReceivedDate: number | null = null;
+  private lastAgentPongReceivedDate: number | null = null;
+  private lastServerPongReceivedDate: number | null = null;
   private lastConnectedDate: number | null = null;
+  private connectionErrorCount = 0;
 
   private online: boolean | null = null;
   private reconnecting = false;
   private visibilityChangeTimestamp: number | null = null;
 
-  private onWebsocketReconnected: (() => void) | null = null;
+  private onDesktopAgentReconnected: (() => void) | null = null;
 
   constructor(
     syncStageObjectId: string,
@@ -104,7 +113,7 @@ export default class {
       this.lastTimeActive = currentTime;
     }, 5000);
 
-    this.watchdogInterval = setInterval(() => {
+    this.reconnectWatchdogInterval = setInterval(() => {
       if (this.reconnecting && this.reconnectingTimestamp !== null) {
         const currentTime = Date.now();
         const elapsedTime = currentTime - this.reconnectingTimestamp;
@@ -115,8 +124,6 @@ export default class {
         }
       }
     }, 1000); // check every second
-
-    // document.addEventListener('visibilitychange', this.handleVisibilityChange.bind(this));
   }
 
   connect(url: string) {
@@ -131,13 +138,13 @@ export default class {
         error: [this.onError],
       },
       reconnectAutomatically: true,
-      retryConnectionDelay: 5000,
+      retryConnectionDelay: 2500,
       storageType: 'memory',
-      retryProcessTimePeriod: 100,
     });
   }
 
   private reconnect() {
+    console.log('Reconnecting WebSocket to server');
     if (this.sarus) {
       this.sarus.messages = [];
     }
@@ -146,12 +153,23 @@ export default class {
     this.sarus?.reconnect();
   }
 
-  public updateOnWebsocketReconnected(onWebsocketReconnected: (() => void) | null) {
-    this.onWebsocketReconnected = onWebsocketReconnected;
+  public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: (() => void) | null) {
+    this.onDesktopAgentReconnected = onDesktopAgentReconnected;
   }
 
   private createWebsocketURI(): string {
     return `${this.url}&syncStageObjectId=${this.syncStageObjectId}&websocketId=${uuidv4()}`;
+  }
+
+  private async handleDesktopAgentDisconnected() {
+    console.log('calling desktopAgentDelegate.handleDesktopAgentDisconnected in handleDesktopAgentDisconnected');
+    this.desktopAgentDelegate?.desktopAgentDisconnected();
+  }
+
+  private async handleBrowserDisconnected() {
+    console.log('calling desktopAgentDelegate.handleBrowserDisconnected in handleBrowserDisconnected');
+    this.desktopAgentDelegate?.browserDisconnected();
+    this.reconnect();
   }
 
   private async onOpen() {
@@ -160,13 +178,12 @@ export default class {
     }
     this.reconnecting = false;
     this.reconnectingTimestamp = null;
+    this.connectionErrorCount = 0;
     console.log(`Connected WebSocket to server`);
 
     this.onDesktopAgentAquiredStatus(false);
 
-    await this.onWebsocketReconnected?.();
-
-    this.lastPongReceivedDate = null;
+    this.lastAgentPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
 
     if (!this.pingInterval) {
@@ -174,25 +191,54 @@ export default class {
 
       this.pingInterval = setInterval(async () => {
         await this.sendMessage(SyncStageMessageType.Ping, {});
-      }, PING_INTERVAL_MS);
+      }, AGENT_PING_INTERVAL_MS);
     }
 
-    if (!this.pingCheckInterval) {
-      this.pingCheckInterval = setInterval(async () => {
-        if (this.lastPongReceivedDate !== null && Date.now() - this.lastPongReceivedDate > ALLOWED_TIME_WITHOUT_PONG_MS) {
-          console.log(
-            `Websocket did not receive Pong message since ${(Date.now() - this.lastPongReceivedDate) / 1000}s. Last pong date: ${
-              this.lastPongReceivedDate
-            }. Last connected date: ${this.lastConnectedDate}.`,
-          );
-          this.isDesktopAgentConnected = false;
-          console.log('calling desktopAgentDelegate.desktopAgentLostConnection');
-          this.desktopAgentDelegate?.desktopAgentDisconnected();
-        }
-      }, PING_INTERVAL_MS);
-    }
+    this.pingAndObserveAgent();
+    this.pingAndObserveServer();
 
     await this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false, 300);
+  }
+
+  private pingAndObserveAgent() {
+    if (!this.agentPingCheckInterval) {
+      this.agentPingCheckInterval = setInterval(async () => {
+        if (this.lastAgentPongReceivedDate !== null && Date.now() - this.lastAgentPongReceivedDate > ALLOWED_TIME_WITHOUT_AGENT_PONG_MS) {
+          console.log(
+            `Websocket did not receive Pong from Agent message since ${
+              (Date.now() - this.lastAgentPongReceivedDate) / 1000
+            }s. Last pong date: ${this.lastAgentPongReceivedDate}`,
+          );
+          this.isDesktopAgentConnected = false;
+          console.log('calling desktopAgentDelegate.desktopAgentDisconnected');
+          this.handleDesktopAgentDisconnected();
+        }
+      }, AGENT_PING_INTERVAL_MS);
+    }
+  }
+
+  private pingAndObserveServer() {
+    if (!this.serverPingInterval) {
+      this.serverPingInterval = setInterval(async () => {
+        if (
+          this.lastServerPongReceivedDate !== null &&
+          Date.now() - this.lastServerPongReceivedDate > ALLOWED_TIME_WITHOUT_SERVER_PONG_MS
+        ) {
+          console.log(
+            `Websocket did not receive Pong from Server message since ${
+              (Date.now() - this.lastServerPongReceivedDate) / 1000
+            }s. Last pong date: ${this.lastServerPongReceivedDate}`,
+          );
+          this.isWebsocketConnectionLive = false;
+          console.log('calling desktopAgentDelegate.handleBrowserDisconnected');
+
+          if (this.lastConnectedDate && Date.now() - this.lastConnectedDate > ALLOWED_TIME_WITHOUT_SERVER_PONG_MS) {
+            this.handleBrowserDisconnected();
+          }
+        }
+        await this.sendMessage(SyncStageMessageType.ServerPing, {}, 0, WAIT_FOR_RESPONSE_TIMEOUT_MS, false);
+      }, SERVER_PING_INTERVAL_MS);
+    }
   }
 
   private async onMessage(event: MessageEvent<any>) {
@@ -202,11 +248,17 @@ export default class {
 
       if (type === SyncStageMessageType.Pong || type == SyncStageMessageType.DesktopAgentConnected) {
         if (!this.isDesktopAgentConnected) {
-          console.log('detected DesktopAgentConnected changed to true');
-          this.onWebsocketReconnected?.();
+          this.desktopAgentDelegate?.desktopAgentConnected();
+          await this.onDesktopAgentReconnected?.();
         }
+
+        if (this.checkDesktopAgentInterval) {
+          clearInterval(this.checkDesktopAgentInterval);
+          this.checkDesktopAgentInterval = null;
+        }
+
         this.isDesktopAgentConnected = true;
-        this.lastPongReceivedDate = Date.now();
+        this.lastAgentPongReceivedDate = Date.now();
         this.onDesktopAgentAquiredStatus(false);
 
         if (type === SyncStageMessageType.Pong) {
@@ -214,9 +266,16 @@ export default class {
         }
       } else if (type == SyncStageMessageType.DesktopAgentDisconnected) {
         this.isDesktopAgentConnected = false;
+      } else if (type == SyncStageMessageType.ServerPong) {
+        if (!this.isWebsocketConnectionLive) {
+          this.desktopAgentDelegate?.browserConnected();
+          this.onDesktopAgentReconnected?.();
+        }
+        this.lastServerPongReceivedDate = Date.now();
+        this.isWebsocketConnectionLive = true;
       }
 
-      if (type !== SyncStageMessageType.Pong) {
+      if (type !== SyncStageMessageType.Pong && type !== SyncStageMessageType.ServerPong) {
         console.log(`Websocket received: ${event.data}`);
       }
 
@@ -227,7 +286,7 @@ export default class {
         const { resolve } = this.requests.get(msgId) as IPendingRequest;
         resolve(data);
         this.requests.delete(msgId);
-      } else if (type !== SyncStageMessageType.Pong) {
+      } else if (type !== SyncStageMessageType.Pong && type !== SyncStageMessageType.ServerPong) {
         console.log(`${type} handling as delegate.`);
         this.onDelegateMessage(type, content);
       }
@@ -249,7 +308,8 @@ export default class {
     console.log('WebSocket error:', error);
     await new Promise((resolve) => setTimeout(resolve, 500));
     const online = await isOnline();
-    if (online) {
+    this.connectionErrorCount++;
+    if (online && this.connectionErrorCount >= ERROR_CONNECTIONS_BEFORE_AQUIRED) {
       this.onDesktopAgentAquiredStatus(true);
     }
   }
@@ -279,8 +339,8 @@ export default class {
     };
     const strPayload = JSON.stringify(payload);
 
-    if (type !== SyncStageMessageType.Ping) {
-      console.log(`Sending to WS: ${strPayload}`);
+    if (type !== SyncStageMessageType.Ping && type !== SyncStageMessageType.ServerPing) {
+      console.log(`Sending to WS: ${strPayload}. Websocket is alive: ${this.isWebsocketConnectionLive}`);
     }
     if (waitForResponse) {
       try {
@@ -296,7 +356,7 @@ export default class {
 
         return desktopAgentResponse;
       } catch (error) {
-        console.log(`Could not send message ${msgId} to the Desktop Agent, or have not received a response. Error: ${error}`);
+        console.log(`Have not received a response for message ${msgId}. Error: ${error}`);
         if (retries) {
           console.log(`Retries left: ${retries} for ${type}`);
           return this.sendMessage(type, content, retries - 1, responseTimeout, waitForResponse);

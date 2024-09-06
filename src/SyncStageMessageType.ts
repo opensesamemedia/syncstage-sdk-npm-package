@@ -47,6 +47,8 @@ export enum SyncStageMessageType {
   IsDesktopAgentConnected = 'IsDesktopAgentConnected',
   DesktopAgentConnected = 'DesktopAgentConnected',
   DesktopAgentDisconnected = 'DesktopAgentDisconnected',
+  BrowserConnected = 'BrowserConnected',
+  BrowserDisconnected = 'BrowserDisconnected',
   TabClosed = 'TabClosed',
   VersionRequest = 'VersionRequest',
   VersionResponse = 'VersionResponse',
@@ -64,6 +66,8 @@ export enum SyncStageMessageType {
   SetDisableGainResponse = 'SetDisableGainResponse',
   SetDirectMonitorRequest = 'SetDirectMonitorRequest',
   SetDirectMonitorResponse = 'SetDirectMonitorResponse',
+  ServerPing = 'ServerPing',
+  ServerPong = 'ServerPong',
 
   Incompatible = 'Incompatible',
 }

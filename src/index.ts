@@ -28,9 +28,9 @@ console.log = function () {
 };
 
 const COMPATIBILITY_MATRIX_ADDRESS = 'https://public.sync-stage.com/agent/compatibility-matrix.json';
-const BASE_WSS_ADDRESS = 'wss://slb1z4dn96.execute-api.us-east-1.amazonaws.com/master/';
+// const BASE_WSS_ADDRESS = 'wss://slb1z4dn96.execute-api.us-east-1.amazonaws.com/master/';
 // const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
-// const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -378,6 +378,7 @@ export default class SyncStage implements ISyncStage {
 
       // Responses with empty content
       case SyncStageMessageType.Pong:
+      case SyncStageMessageType.ServerPong:
       case SyncStageMessageType.LeaveResponse:
       case SyncStageMessageType.SetLatencyOptimizationLevelRequest:
       case SyncStageMessageType.ProvisionResponse:
@@ -509,7 +510,7 @@ export default class SyncStage implements ISyncStage {
       pairingCode = this.generateRandomString(256);
       await this.setInDB(db, 'myStore', 'pairingCode', pairingCode);
     }
-
+    console.log('Pairing code:', pairingCode);
     return [
       `${this.baseWssAddress}?peerType=DESKTOP_AGENT&pairingCode=${pairingCode}`,
       `${this.baseWssAddress}?peerType=BROWSER_SDK&pairingCode=${pairingCode}`,
@@ -563,7 +564,7 @@ export default class SyncStage implements ISyncStage {
   async isCompatible(os: string): Promise<boolean> {
     console.log('isCompatible');
     const requestType = SyncStageMessageType.VersionRequest;
-    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 5000);
 
     if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
       console.log('Error fetching compatibility matrix');
@@ -588,21 +589,22 @@ export default class SyncStage implements ISyncStage {
       const compatibleVersion = matrix.filter((entry: { webSdkVersion: string }) => entry.webSdkVersion === version)[0];
 
       console.log('compatibleVersion:', compatibleVersion);
-      const compatible = compatibleVersion.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
-      console.log('Compatible:', compatible);
-      return compatible;
+      if (compatibleVersion) {
+        const compatible = compatibleVersion.compatibleDesktopAgentVersions[os].includes(versionResponse.content.agentVersion);
+        console.log('Compatible:', compatible);
+        return compatible;
+      }
     } catch (error) {
-      console.error(`Error in isCompatible: ${error}`);
-      console.log('No compatible versions found');
-
-      return false;
+      console.log(`Error in isCompatible: ${error}`);
     }
+    console.log('No compatible versions found');
+    return false;
   }
 
   async getLatestCompatibleDesktopAgentVersion(os: string): Promise<string | null> {
     console.log('getLatestCompatibleDesktopAgentVersion');
     const requestType = SyncStageMessageType.VersionRequest;
-    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 240000);
+    const versionResponse = await this.ws.sendMessage(requestType, { webSDKVersion: version }, 0, 5000);
 
     if (!versionResponse || versionResponse.errorCode !== SyncStageSDKErrorCode.OK) {
       console.log('Error fetching compatibility matrix');
@@ -652,7 +654,7 @@ export default class SyncStage implements ISyncStage {
   updateOnDesktopAgentReconnected(onDesktopAgentReconnected: () => void): void {
     this.onDesktopAgentReconnected = onDesktopAgentReconnected;
     this.onDesktopAgentReconnected = this.onDesktopAgentReconnected.bind(this);
-    this.ws.updateOnWebsocketReconnected(this.onDesktopAgentReconnected);
+    this.ws.updateOnDesktopAgentReconnected(this.onDesktopAgentReconnected);
   }
 
   // Deprecated

@@ -2,6 +2,7 @@ import { SyncStageMessageType } from './SyncStageMessageType';
 
 export enum RequestResponseMap {
   Ping = SyncStageMessageType.Pong,
+  ServerPing = SyncStageMessageType.ServerPong,
   ProvisionRequest = SyncStageMessageType.ProvisionResponse,
   CreateSessionRequest = SyncStageMessageType.CreateSessionResponse,
   JoinRequest = SyncStageMessageType.JoinResponse,

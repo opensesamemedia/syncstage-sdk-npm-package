@@ -1,6 +1,6 @@
 {
-  "name": "@opensesamemedia/syncstage",
-  "version": "0.7.0",
+  "name": "@opensesamemedia/syncstage-sdk-npm-package-development",
+  "version": "0.7.1-rc18",
   "description": "",
   "types": "./lib/types/index.d.ts",
   "main": "./lib/index.js",
@@ -56,7 +56,7 @@
     "typescript": "^5.2.2"
   },
   "dependencies": {
-    "@anephenix/sarus": "^0.4.6",
+    "@anephenix/sarus": "^0.6.0",
     "async-mutex": "^0.4.0",
     "is-online": "^10.0.0",
     "uuid": "^9.0.0"
