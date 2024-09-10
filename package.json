@@ -7,7 +7,9 @@
   "files": [
     "lib/**/*"
   ],
-  "exports": "./lib",
+  "exports": {
+    ".": "./lib/index.js"
+  },
   "scripts": {
     "clean": "rm -rf ./lib",
     "prebuild": "node fetch-compatibility-matrix.js && node write-version.js",
