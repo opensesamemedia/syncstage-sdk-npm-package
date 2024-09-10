@@ -12,7 +12,7 @@ const SERVER_PING_INTERVAL_MS = 2000;
 const ISONLINE_INTERVAL_MS = 5000;
 const ALLOWED_TIME_WITHOUT_AGENT_PONG_MS = 11000;
 const ALLOWED_TIME_WITHOUT_SERVER_PONG_MS = 5000;
-const ERROR_CONNECTIONS_BEFORE_AQUIRED = 6;
+const ERROR_CONNECTIONS_BEFORE_AQUIRED = 4;
 
 export interface IWebsocketPayload {
   type: SyncStageMessageType;
@@ -31,6 +31,7 @@ export default class {
   private syncStageObjectId: string;
   private url = '';
   private sarus: Sarus | null = null;
+  private oldSaruses: Sarus[] = [];
   private requests: Map<string, IPendingRequest>;
   private onDelegateMessage: (responseType: SyncStageMessageType, content: any) => void;
   private onDesktopAgentAquiredStatus: (aquired: boolean) => void;
@@ -44,6 +45,7 @@ export default class {
   private agentPingCheckInterval: any = null;
   private checkDesktopAgentInterval: any = null;
   private isOnlineInterval: any = null;
+  private clearOldConnectionsInterval: any = null;
   private wasSleepingInterval: any = null;
   private reconnectWatchdogInterval: any = null;
   private lastTimeActive = Date.now();
@@ -105,9 +107,7 @@ export default class {
         // 5 seconds
         console.log('The computer was likely in sleep mode or shutdown, restart the WebSocket connection.');
 
-        if (!this.reconnecting) {
-          this.reconnect();
-        }
+        this.reconnect();
       }
 
       this.lastTimeActive = currentTime;
@@ -124,33 +124,87 @@ export default class {
         }
       }
     }, 1000); // check every second
+
+    this.clearOldConnectionsInterval = setInterval(() => {
+      let index = 0;
+
+      this.oldSaruses.forEach((oldSarus) => {
+        if (oldSarus.state.kind !== 'closed' && oldSarus.state.kind !== 'disconnected') {
+          console.log(`Disconnecting old WS connection ${index} ${JSON.stringify(oldSarus.state)}`);
+          oldSarus.disconnect();
+        }
+        index++;
+      });
+
+      // Remove all that have state kind closed or disconnected
+      this.oldSaruses = this.oldSaruses.filter((oldSarus) => {
+        return oldSarus.state.kind !== 'closed' && oldSarus.state.kind !== 'disconnected';
+      });
+    }, 1000);
   }
 
   connect(url: string) {
+    console.log(`Connecting WebSocket to server: ${url}`);
     this.url = url;
 
-    this.sarus = new Sarus({
-      url: this.createWebsocketURI(),
-      eventListeners: {
-        open: [this.onOpen],
-        message: [this.onMessage],
-        close: [this.onClose],
-        error: [this.onError],
-      },
-      reconnectAutomatically: true,
-      retryConnectionDelay: 2500,
-      storageType: 'memory',
-    });
+    // sleep 1s in case old connection is hanging (from previous page load)
+    setTimeout(() => {
+      this.pingAndObserveServer();
+
+      console.log('Creating new Sarus instance');
+      this.sarus = new Sarus({
+        url: this.createWebsocketURI(),
+        eventListeners: {
+          open: [this.onOpen],
+          message: [this.onMessage],
+          close: [this.onClose],
+          error: [this.onError],
+        },
+        retryConnectionDelay: 2500,
+        reconnectAutomatically: true,
+        storageType: 'memory',
+      });
+
+      console.log('Sarus instance created');
+    }, 1000);
   }
 
   private reconnect() {
+    if (this.reconnecting) {
+      console.log('Already reconnecting, skipping reconnect');
+      return;
+    }
     console.log('Reconnecting WebSocket to server');
     if (this.sarus) {
       this.sarus.messages = [];
     }
     this.reconnecting = true;
     this.reconnectingTimestamp = Date.now();
-    this.sarus?.reconnect();
+
+    this.sarus?.off('open', this.onOpen);
+    this.sarus?.off('message', this.onMessage);
+    this.sarus?.off('close', this.onClose);
+    this.sarus?.off('error', this.onError);
+    this.sarus?.removeEventListeners();
+    this.sarus?.disconnect();
+
+    if (this.sarus) {
+      this.oldSaruses = [...this.oldSaruses, this.sarus];
+    }
+
+    this.sarus = null;
+
+    clearInterval(this.agentPingCheckInterval);
+    this.agentPingCheckInterval = null;
+    clearInterval(this.serverPingInterval);
+    this.serverPingInterval = null;
+
+    //sleep 4000 ms
+    setTimeout(() => {
+      this.connect(this.url);
+      this.pingAndObserveAgent();
+      this.pingAndObserveServer();
+    }, 4000);
   }
 
   public updateOnDesktopAgentReconnected(onDesktopAgentReconnected: (() => void) | null) {
@@ -182,6 +236,7 @@ export default class {
     console.log(`Connected WebSocket to server`);
 
     this.onDesktopAgentAquiredStatus(false);
+    this.desktopAgentDelegate?.browserConnected();
 
     this.lastAgentPongReceivedDate = null;
     this.lastConnectedDate = Date.now();
@@ -195,7 +250,6 @@ export default class {
     }
 
     this.pingAndObserveAgent();
-    this.pingAndObserveServer();
 
     await this.sendMessage(SyncStageMessageType.IsDesktopAgentConnected, {}, 0, 0, false, 300);
   }
@@ -306,6 +360,8 @@ export default class {
 
   private async onError(error: Event) {
     console.log('WebSocket error:', error);
+    this.reconnecting = false;
+
     await new Promise((resolve) => setTimeout(resolve, 500));
     const online = await isOnline();
     this.connectionErrorCount++;
@@ -375,6 +431,33 @@ export default class {
         }
       }
       return null;
+    }
+  }
+  public async terminate() {
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      try {
+        this.sarus?.disconnect();
+        clearInterval(this.pingInterval);
+        clearInterval(this.agentPingCheckInterval);
+        clearInterval(this.serverPingInterval);
+        clearInterval(this.isOnlineInterval);
+        clearInterval(this.clearOldConnectionsInterval);
+        clearInterval(this.wasSleepingInterval);
+        clearInterval(this.reconnectWatchdogInterval);
+        this.sarus?.off('open', this.onOpen);
+        this.sarus?.off('message', this.onMessage);
+        this.sarus?.off('close', this.onClose);
+        this.sarus?.off('error', this.onError);
+        this.sarus?.removeEventListeners();
+        this.sarus = null;
+        console.log('Terminated WebSocket connection in the package.');
+        return;
+      } catch (error) {
+        console.log('Error while terminating WebSocket connection in the package.');
+      }
+      //sleep 500 ms
+      await new Promise((resolve) => setTimeout(resolve, 500));
     }
   }
 }

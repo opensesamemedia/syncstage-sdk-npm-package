@@ -31,6 +31,7 @@ const COMPATIBILITY_MATRIX_ADDRESS = 'https://public.sync-stage.com/agent/compat
 // const BASE_WSS_ADDRESS = 'wss://slb1z4dn96.execute-api.us-east-1.amazonaws.com/master/';
 // const BASE_WSS_ADDRESS = 'wss://websocket-pipe.sync-stage.com';
 const BASE_WSS_ADDRESS = 'wss://1ag0nfu7b4.execute-api.us-east-1.amazonaws.com/dev';
+// const BASE_WSS_ADDRESS = 'wss://websocket-pipe.opensesame-test.link';
 
 export default class SyncStage implements ISyncStage {
   public connectivityDelegate: ISyncStageConnectivityDelegate | null;
@@ -991,6 +992,11 @@ export default class SyncStage implements ISyncStage {
     console.log(`checkProvisionedStatus 'this' is an instance of: ${this.constructor.name}`);
 
     return this.isProvisioned;
+  }
+
+  async terminate(): Promise<SyncStageSDKErrorCode> {
+    this.ws.terminate();
+    return SyncStageSDKErrorCode.OK;
   }
 }
 

@@ -50,4 +50,5 @@ export default interface ISyncStage {
   setDisableGain(disabled: boolean): Promise<SyncStageSDKErrorCode>;
   setDirectMonitor(enabled: boolean): Promise<SyncStageSDKErrorCode>;
   setLatencyOptimizationLevel(level: LatencyOptimizationLevel): Promise<SyncStageSDKErrorCode>;
+  terminate(): Promise<SyncStageSDKErrorCode>;
 }
